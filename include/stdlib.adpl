@@ -1,0 +1,46 @@
+# FLAGS
+;;define O_RDONLY 0
+;;define O_WRONLY 1
+;;define O_RDWR 2
+# MODES
+;;define S_IRWXU 1792
+# OUTSTREAMS
+;;define STDERR 2
+;;define STDOUT 1
+;;define STDIN 0
+
+#SYSCALL WRAPPERS
+proc SYS_write
+in uint fd
+in ptr buffer
+in uint size
+begin
+  syscall(1 fd buffer size)
+end
+proc SYS_openfd
+in ptr filename
+in uint flags
+in uint mode
+out uint fd
+begin
+  fd syscall(2 filename flags mode)
+end
+proc SYS_closefd
+in uint fd
+begin
+  syscall(3 fd)
+end
+
+#UTIL
+proc strlen
+in ptr str
+out uint len
+begin
+  ptr beginning str
+  char c @str
+  while(c)
+    str++
+    c @str
+  end
+  len str-beginning
+end
