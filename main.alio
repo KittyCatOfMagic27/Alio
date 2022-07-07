@@ -1,0 +1,9 @@
+;;include static <stdlib>
+
+proc main
+begin
+  static string hello "Hello World!"
+  ptr x &hello
+  uint length strlen(x)
+  SYS_write(STDOUT x length)
+end
