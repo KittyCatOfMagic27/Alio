@@ -1,18 +1,26 @@
 # Alio #
-Another language written in C++
+"Another" language written in C++
   
 Written for Debian Linux.
 
 ## Setup ##
+Compiling and using alio for now, this will be changed ALOT in the future.
 
---- info here ---
-
+```
+usr@penguin:~/ALIO$ g++ alio.cpp -o alio
+usr@penguin:~/ALIO$ ./alio --help
+usr@penguin:~/ALIO$ ./alio -f main.alio
+### TEMPORARY BECAUSE SOMETHING THAT SHOULD WORK DOESN'T WORK ###
+usr@penguin:~/ALIO$ nasm -f elf64 -o main.o main.asm
+usr@penguin:~/ALIO$ ld -m elf_x86_64 -e main -o main main.o
+usr@penguin:~/ALIO$ ./main
+```
 
 ## Docs ##
 
 ### Procedures ###
    
-Procedures are Alio's version of funtion. They consist of two parts, the head and body. The head is the portion of code in between the label of the procedure and the begin keyword. In this part of the procedure we specify the in and out variables and other attributes of the procedure. After the begin keyword is the body of the procedure, this is the code that is executed when the procedure is called. The final thing about procedures is that they end (like all blocks in Alio) with the end keyword. For now the entry point is main, later this will have to be specified at the begining of the program.
+Procedures are Alio's version of a funtion. They consist of two parts, the head and body. The head is the portion of code in between the label of the procedure and the begin keyword. In this part of the procedure we specify the in and out variables and other attributes of the procedure. After the begin keyword is the body of the procedure, this is the code that is executed when the procedure is called. The final thing about procedures is that they end (like all blocks in Alio) with the end keyword. For now the entry point is main, later this will have to be specified at the begining of the program.
 
 ```
 proc main
@@ -34,7 +42,7 @@ These are the current types and things about them in Alio.
 - long (not available in 32bit mode)
 - string
   
-Something interesting about Alio is that most operators are procedually created at compile time. So the 5 basic oparators (+, -, *, /, %)can be used with any combination of the existing types except for strings.
+Something interesting about Alio is that most operators are procedually created at compile time. So the 5 basic oparators (+, -, *, /, %) can be used with any combination of the existing types except for strings.
 
 ### Pointers ###
 Pointers store an address to a place in memory. Most of the time this is to a variable. They have two unique operators. The first is the '&' operator used to get the address of a variable. The second is the '@' operartor, this is used to get the value at the address.
@@ -51,6 +59,7 @@ end
 Static variables are stored in the bss and data sections. This means they have some different properties from normal variables and are slightly slower to access.
 ```
 ;;include static <stdlib>
+
 proc main
 begin
   static string hello "Hello World!"
@@ -69,6 +78,29 @@ in ptr buffer
 in uint size
 begin
   syscall(1 fd buffer size)
+end
+```
+
+### While ###
+The keyword while instantiates a loop, currently it runs while the checked value is not 0. This will be changed in the future to support expressions with the addition of ifs, elses, and elifs.
+```
+;;include static <stdlib>
+
+proc main
+begin
+  static string hi "Hello World"
+  ptr str &hi
+  # strlen
+  ptr beginning str
+  char c @str
+  while(c)
+    str++
+    c @str
+  end
+  uint len str-beginning
+  # Print
+  str &hi
+  SYS_write(STDOUT str length)
 end
 ```
 
