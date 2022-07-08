@@ -220,6 +220,12 @@ namespace intr{
           INTER.push_back("!=");
           setup_op(tk1, tk2);
           break;
+          case lex::AND:
+          tk1 = Tokens[++i];
+          tk2 = Tokens[++i];
+          INTER.push_back("&&");
+          setup_op(tk1, tk2);
+          break;
           case lex::AMPERSAND:
           tk1 = Tokens[++i];
           INTER.push_back("&");
@@ -254,6 +260,9 @@ namespace intr{
           break;
           case lex::WHILE:
           INTER.push_back("while");
+          break;
+          case lex::IF:
+          INTER.push_back("if");
           break;
           default:
           cerr << "\033[1;31m"<<lex::FILENAME<<":"<<tk.line<<":Unhandled token type in intermediate '"<<lex::TYPE_NAMES[tk.type]<<"'.\033[0m\n";
@@ -291,6 +300,7 @@ namespace intr{
     }
     void grammer_check(){
       int WHILE_COUNT = 0;
+      int IF_COUNT    = 0;
       for(int i = 0; i < INTER.size()-1; i++){
         string s = INTER[i];
         if(s==";"&&INTER[i+1][0]=='?'){
@@ -338,6 +348,46 @@ namespace intr{
           insertv.push_back("jmpc");
           insertv.push_back(".while"+to_string(WHILE_COUNT));
           insertv.push_back(expression[0]);
+          insertv.push_back(";");
+          INTER.insert(INTER.begin()+i,insertv.begin(), insertv.end());
+          i = beginning+1;
+        }
+        else if(s=="if"){
+          //Erase and get info
+          int beginning = i;
+          if(INTER[++i]!="("){
+            cerr << "\033[1;31mNo open paren with if dec.\033[0m\n";
+            assert(false);
+          }
+          vector<string> expression;
+          while(INTER[++i]!=")") expression.push_back(INTER[i]);
+          i++;
+          INTER.erase(INTER.begin()+beginning,INTER.begin()+i+1);
+          i = beginning;
+          //Set up the beginning of the if
+          vector<string> insertv;
+          insertv.push_back("jmpc");
+          insertv.push_back(".if"+to_string(++IF_COUNT));
+          insertv.push_back(expression[0]);
+          insertv.push_back("!");
+          insertv.push_back(";");
+          INTER.insert(INTER.begin()+i,insertv.begin(), insertv.end());
+          i+=insertv.size()-1;
+          //Find End
+          //while(INTER[++i]!="end"&&INTER[i+1]!="while");
+          int bc = 1;
+          while(true){
+            if(INTER[++i]=="if") bc++;
+            else if(INTER[i]=="end"&&INTER[i+1]=="if"){
+              if(--bc==0) break;
+              i++;
+            }
+          }
+          INTER.erase(INTER.begin()+i,INTER.begin()+i+3);
+          //Setup end
+          insertv.clear();
+          insertv.push_back("label");
+          insertv.push_back(".if"+to_string(IF_COUNT));
           insertv.push_back(";");
           INTER.insert(INTER.begin()+i,insertv.begin(), insertv.end());
           i = beginning+1;
