@@ -40,6 +40,7 @@ namespace lex{
     GECMP,
     ECMP,
     NECMP,
+    AND,
     DEREF,
     CALL,
     AMPERSAND,
@@ -54,6 +55,7 @@ namespace lex{
     SYSCALL,
     STATIC,
     WHILE,
+    IF,
     //Symbols
     OPARA,
     CPARA,
@@ -103,6 +105,7 @@ namespace lex{
     "GECMP",
     "ECMP",
     "NECMP",
+    "AND",
     "DEREF",
     "AMPERSAND",
     //Keywords
@@ -117,6 +120,7 @@ namespace lex{
     "SYSCALL",
     "STATIC",
     "WHILE",
+    "IF",
     //Symbols
     "OPARA",
     "CPARA",
@@ -143,6 +147,7 @@ namespace lex{
     {"pop",     POP},
     {"syscall", SYSCALL},
     {"while",   WHILE},
+    {"if",      IF},
     {"(",       OPARA},
     {")",       CPARA},
     {"[",       OSQRB},
@@ -162,7 +167,8 @@ namespace lex{
     {"<=",      LECMP},
     {">=",      GECMP},
     {"=",       ECMP},
-    {"!=",      NECMP}
+    {"!=",      NECMP},
+    {"&&",      AND}
   });
   
   //UTIL
@@ -291,7 +297,7 @@ namespace lex{
     void parse(){
       printf("Parsing...\n");
       int LIB_OFFSET = 0;
-      vector<string> SYM_TABLE({"+","-","/","*","%","&",";;","(",")",";","[","]","@","++","--","<",">","<=",">=","=","!="});
+      vector<string> SYM_TABLE({"+","-","/","*","%","&",";;","(",")",";","[","]","@","++","--","<",">","<=",">=","=","!=","&&"});
       vector<Token> VAR_TKS;
       vector<string> PROCS;
       unordered_map<string, int> VARS;
@@ -489,6 +495,10 @@ namespace lex{
             block_tracker++;
             BLOCK_STACK.push_back("while");
           break;
+          case IF:
+            block_tracker++;
+            BLOCK_STACK.push_back("if");
+          break;
           case END:
             block_tracker--;
             if(block_tracker<0){
@@ -527,6 +537,7 @@ namespace lex{
           case GECMP:
           case LECMP:
           case NECMP:
+          case AND:
             prev = Tokens[i-1];
             if(prev.type<UINT||prev.type>CHAR){
               cerr << "\033[1;31m"<<FILENAME<<":"<<tk.line<<":First agrument of '"<< TYPE_NAMES[tk.type] <<"' is not a Valid Type.\033[0m\n";
