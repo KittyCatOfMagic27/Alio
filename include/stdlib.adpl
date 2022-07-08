@@ -44,3 +44,27 @@ begin
   end
   len str-beginning
 end
+
+proc strcmp
+in ptr str1
+in ptr str2
+out bool equals?
+begin
+  uint len1 strlen(str1)
+  uint len2 strlen(str2)
+  equals? len1 = len2
+  if(equals?)
+    bool continue true
+    bool i 0
+    while(continue)
+      char c1 @str1
+      char c2 @str2
+      equals? c1 = c2
+      bool nend i < len1
+      continue equals? && nend
+      i++
+      str1++
+      str2++
+    end
+  end
+end
