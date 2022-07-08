@@ -104,8 +104,24 @@ begin
 end
 ```
 
+### If ###
+If activates the code within the block if and only if the input is not zero or null. Just like while loops, expressions within the if comparison are not implemented yet.
+```
+proc main
+begin
+  uint x 69
+  bool eq x = 420
+  if(eq)
+    static string y "Dank"
+    ptr str &y
+    uint length strlen(str)
+    SYS_write(STDOUT str length)
+  end
+end
+```
+
 ## Goals ##
 - resupport x86 mode (elf32/i386)
-- Add if, else, and elif based off of while
-- Add %tmp1, %tmp2, %tmp3... for expression expansions in intermediate
+- Add else and elif based off of while (already added if)
+- Add %tmp1, %tmp2, %tmp3... for expression expansions in intermediate lang
 - Use %tmp's for conditionals in while, if, elif, ect.
