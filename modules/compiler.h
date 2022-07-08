@@ -509,10 +509,17 @@ namespace comp{
         else if(cur == "jmpc"){
           string label = INTER[++i];
           string value = INTER[++i];
-          out_stream <<
-          "  cmp " << asm_get_value(value, PROCS[CP]) << ", 0\n"
-          "  jne " << label << "\n";
-          i++;
+          if(INTER[++i]=="!"){
+            i++;
+            out_stream <<
+            "  cmp " << asm_get_value(value, PROCS[CP]) << ", 0\n"
+            "  je "  << label << "\n";
+          }
+          else{
+            out_stream <<
+            "  cmp " << asm_get_value(value, PROCS[CP]) << ", 0\n"
+            "  jne " << label << "\n";
+          }
         }
         else if(cur == "jmp"){
           string label = INTER[++i];
@@ -658,7 +665,6 @@ namespace comp{
           op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
           out_stream <<
           "  cmp "<<reg1<<", "<<reg2<<"\n"
-          "  xor rax, rax\n"
           "  setg al\n";
           i++;
           if(VAR_ASSIGN!=""){
@@ -675,7 +681,6 @@ namespace comp{
           op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
           out_stream <<
           "  cmp "<<reg1<<", "<<reg2<<"\n"
-          "  xor rax, rax\n"
           "  setl al\n";
           i++;
           if(VAR_ASSIGN!=""){
@@ -692,7 +697,6 @@ namespace comp{
           op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
           out_stream <<
           "  cmp "<<reg1<<", "<<reg2<<"\n"
-          "  xor rax, rax\n"
           "  sete al\n";
           i++;
           if(VAR_ASSIGN!=""){
@@ -709,7 +713,6 @@ namespace comp{
           op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
           out_stream <<
           "  cmp "<<reg1<<", "<<reg2<<"\n"
-          "  xor rax, rax\n"
           "  setne al\n";
           i++;
           if(VAR_ASSIGN!=""){
@@ -726,7 +729,6 @@ namespace comp{
           op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
           out_stream <<
           "  cmp "<<reg1<<", "<<reg2<<"\n"
-          "  xor rax, rax\n"
           "  setge al\n";
           i++;
           if(VAR_ASSIGN!=""){
@@ -743,8 +745,24 @@ namespace comp{
           op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
           out_stream <<
           "  cmp "<<reg1<<", "<<reg2<<"\n"
-          "  xor rax, rax\n"
           "  setle al\n";
+          i++;
+          if(VAR_ASSIGN!=""){
+            Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
+            out_stream << "  mov " << asm_var(var_assign) << ", "<<get_reg(var_assign.size, "a")<<"\n";
+            VAR_ASSIGN="";
+          }
+        }
+        else if(cur == "&&"){
+          int size1 = stoi(INTER[++i].erase(0,1))/8;
+          int size2 = stoi(INTER[++i].erase(0,1))/8;
+          string reg1;
+          string reg2;
+          op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
+          out_stream <<
+          "  and "<<reg1<<", "<<reg2<<"\n"
+          "  shr al, 1\n"
+          "  setc al\n";
           i++;
           if(VAR_ASSIGN!=""){
             Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
