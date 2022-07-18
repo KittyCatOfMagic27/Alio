@@ -4,7 +4,9 @@
 Written for Debian Linux.
 
 ## Setup ##
-Compiling and using alio for now, this will be changed ALOT in the future.
+Compiling and using alio for now, this will be changed ALOT in the future.   
+**NOTE IM UPDATING THE CODE BUT NOT THE README.md FOR NOW**   
+**TAKE ALL DOCUMENTATION WITH A GAINT GRAIN OF SALT**   
 
 ```
 usr@penguin:~/ALIO$ g++ alio.cpp -o alio
