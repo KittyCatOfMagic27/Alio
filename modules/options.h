@@ -15,6 +15,7 @@ namespace options{
   
   COMP_TARGETS target;
   string FILE_BASENAME;
+  string EXEC_FILE;
   bool KEEP_ASM = false;
   bool DEBUGMODE = false;
 }

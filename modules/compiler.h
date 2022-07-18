@@ -15,35 +15,6 @@ using namespace std;
 namespace comp{
   stringstream ss;
   string baseptr = "rbp";
-  vector<string> syscall_args({
-    "rax",
-    "rdi",
-    "rsi",
-    "rdx",
-    "r10",
-    "r8",
-    "r9"
-  });
-  vector<string> syscall_sigs({
-    "a",
-    "di",
-    "si",
-    "d",
-    "r10",
-    "r8",
-    "r9"
-  });
-  vector<string> WORD_MAP({
-    "%%NA%%",
-    "byte",
-    "word",
-    "%%NA%%",
-    "dword",
-    "%%NA%%",
-    "%%NA%%",
-    "%%NA%%",
-    "qword",
-  });
   
   enum VAR_TYPES{
     VTSTACK,
@@ -67,44 +38,6 @@ namespace comp{
     unsigned int offset=0;
   };
   
-  string asm_get_value(string &value, Procedure &proc){
-    if(lex::literal_or_var(value) == lex::ERROR){
-      Variable var = proc.VARS[value];
-      int ptr      = var.byte_addr;
-      int size     = var.size;
-      switch(size){
-        case 1:
-        ss << "byte ["<<baseptr<<"-" << ptr << "]";
-        break;
-        case 2:
-        ss << "word ["<<baseptr<<"-" << ptr << "]";
-        break;
-        case 4:
-        ss << "dword ["<<baseptr<<"-" << ptr << "]";
-        break;
-        case 8:
-        ss << "qword ["<<baseptr<<"-" << ptr << "]";
-        break;
-        default:
-        cerr << "\033[1;31mUknown size of '"<<size<<"'.\033[0m\n";
-        assert(false);
-        break;
-      }
-      string output = ss.str();
-      ss.str("");
-      return output;
-    }
-    else{
-      if(value == "true"){
-        return "1";
-      }
-      else if(value == "false"){
-        return "0";
-      }
-      return value;
-    }
-  }
-  
   string get_reg(int size, string reg_id){
     string result;
     switch(size){
@@ -115,7 +48,6 @@ namespace comp{
     }
     return result;
   }
-  
   string get_reg_adv(int size, string reg_id){
     string result;
     if(reg_id=="a"||reg_id=="b"||reg_id=="c"||reg_id=="d"){
@@ -143,7 +75,6 @@ namespace comp{
     }
     return result;
   }
-  
   string asm_var(Variable &var){
     switch(var.type){
       case VTSTACK:
@@ -175,31 +106,7 @@ namespace comp{
       break;
       case VTBSS:
       case VTDATA:
-      {
-        int ptr      = var.byte_addr;
-        int size     = var.size;
-        switch(size){
-          case 1:
-          ss << "byte ["<<var.label<<"]";
-          break;
-          case 2:
-          ss << "word ["<<var.label<<"]";
-          break;
-          case 4:
-          ss << "dword ["<<var.label<<"]";
-          break;
-          case 8:
-          ss << "qword ["<<var.label<<"]";
-          break;
-          default:
-          cerr << "\033[1;31mUknown size of '"<<size<<"'.\033[0m\n";
-          assert(false);
-          break;
-        }
-        string output = ss.str();
-        ss.str("");
-        return output;
-      }
+       return var.label;
       break;
       default:
       cerr << "\033[1;31mUknown var_type of value '"<<var.type<<"'.\033[0m\n";
@@ -207,10 +114,30 @@ namespace comp{
       break;
     }
   }
+  string asm_get_value(string &value, Procedure &proc){
+    if(lex::literal_or_var(value) == lex::ERROR){
+      Variable var = proc.VARS[value];
+      return asm_var(var);;
+    }
+    else{
+      if(value == "true"){
+        return "1";
+      }
+      else if(value == "false"){
+        return "0";
+      }
+      return value;
+    }
+  }
   
   class COMPILER{
     public:
-    
+    vector<string> syscall_args;
+    vector<string> syscall_sigs;
+    vector<string> WORD_MAP;
+    unordered_map<string, string> CMP_MAP;
+    unordered_map<string, string> INV_CMP_MAP;
+  
     vector<string> INTER;
     ofstream out_stream;
     unordered_map<string, Procedure> PROCS;
@@ -222,6 +149,51 @@ namespace comp{
         assert(false);
       }
       INTER = _INTER;
+      syscall_args = {
+        "rax",
+        "rdi",
+        "rsi",
+        "rdx",
+        "r10",
+        "r8",
+        "r9"
+      };
+      syscall_sigs = {
+        "a",
+        "di",
+        "si",
+        "d",
+        "r10",
+        "r8",
+        "r9"
+      };
+      WORD_MAP = {
+        "%%NA%%",
+        "byte",
+        "word",
+        "%%NA%%",
+        "dword",
+        "%%NA%%",
+        "%%NA%%",
+        "%%NA%%",
+        "qword",
+      };
+      CMP_MAP = {
+        {">","jg"},
+        {"<","jl"},
+        {">=","jge"},
+        {"<=","jle"},
+        {"==","je"},
+        {"!=","jne"}
+      };
+      INV_CMP_MAP = {
+        {">","jle"},
+        {"<","jge"},
+        {">=","jl"},
+        {"<=","jg"},
+        {"==","jne"},
+        {"!=","je"}
+      };
     }
     
     void run(){
@@ -275,21 +247,19 @@ namespace comp{
         else if(cur == "call"){
           PROCS[CP].call_amount++;
         }
-        else if(cur == "def"&&INTER[i-1]!="static"){
+        else if(cur == "def"&&(INTER[i-1]!="static"&&INTER[i-1]!="extern"&&INTER[i-1]!="global")){
           string symbol = INTER[i+2];
-          // if(find(lex::PTR_LIST.begin(), lex::PTR_LIST.end(), symbol.erase(0,1))!=lex::PTR_LIST.end()){
-            Variable new_var;
-            string isize        = INTER[++i];
-            int size            = stoi(isize.erase(0,1))/8;
-            string sym          = INTER[++i];
-            PROCS[CP].bytes    += size;
-            PROCS[CP].offset   += size;
-            new_var.byte_addr   = PROCS[CP].bytes;
-            new_var.size        = size;
-            new_var.label       = sym;
-            PROCS[CP].VARS[sym] = new_var;
-            i++;
-          // }
+          Variable new_var;
+          string isize        = INTER[++i];
+          int size            = stoi(isize.erase(0,1))/8;
+          string sym          = INTER[++i];
+          PROCS[CP].bytes    += size;
+          PROCS[CP].offset   += size;
+          new_var.byte_addr   = PROCS[CP].bytes;
+          new_var.size        = size;
+          new_var.label       = sym;
+          PROCS[CP].VARS[sym] = new_var;
+          i++;
         }
       }
     }
@@ -301,27 +271,29 @@ namespace comp{
     }
     
     void op_init(int &size1, int &size2, string &reg1, string &reg2, int &i, Procedure &proc){
-      if(size2<size1){
+      string v1 = INTER[++i];
+      string v2 = INTER[++i];
+      if(size2<size1&&lex::literal_or_var(v2)==lex::ERROR){
         reg1  = get_reg(size1, "a");
         reg2  = get_reg(size1, "d");
         out_stream <<
-        "  mov "<< reg1 <<", " << asm_get_value(INTER[++i], proc) << "\n"
-        "  movsx "<< reg2 <<", " << asm_get_value(INTER[++i], proc) << "\n";
+        "  mov "<< reg1 <<", " << asm_get_value(v1, proc) << "\n"
+        "  movsx "<< reg2 <<", " << asm_get_value(v2, proc) << "\n";
       }
-      else if(size2>size1){
+      else if(size2>size1&&lex::literal_or_var(v2)==lex::ERROR){
         size1 = size2;
-        reg1  = get_reg(size1, "a");
-        reg2  = get_reg(size1, "d");
+        reg1  = get_reg(size2, "a");
+        reg2  = get_reg(size2, "d");
         out_stream <<
-        "  movsx "<< reg1 <<", " << asm_get_value(INTER[++i], proc) << "\n"
-        "  mov "<< reg2 <<", " << asm_get_value(INTER[++i], proc) << "\n";
+        "  movsx "<< reg1 <<", " << asm_get_value(v1, proc) << "\n"
+        "  mov "<< reg2 <<", " << asm_get_value(v2, proc) << "\n";
       }
       else{
         reg1  = get_reg(size1, "a");
-        reg2  = get_reg(size2, "d");
+        reg2  = get_reg(size1, "d");
         out_stream <<
-        "  mov "<< reg1 <<", " << asm_get_value(INTER[++i], proc) << "\n"
-        "  mov "<< reg2 <<", " << asm_get_value(INTER[++i], proc) << "\n";
+        "  mov "<< reg1 <<", " << asm_get_value(v1, proc) << "\n"
+        "  mov "<< reg2 <<", " << asm_get_value(v2, proc) << "\n";
       }
     }
     
@@ -333,10 +305,11 @@ namespace comp{
           if(s == ";") cout << "\n";
         }
       }
+      int INTER_LINE = 0;
       string VAR_ASSIGN;
       string CP;
       string DATA_SECTION = "SECTION .data:\n";
-      string BSS_SECTION  = "SECTION .bss:\n";
+      string BSS_SECTION = "SECTION .bss\n";
       for(int i=0; i<INTER.size(); i++){
         string cur = INTER[i];
         if(cur == "proc"){
@@ -444,25 +417,37 @@ namespace comp{
             cerr << "No open paren when calling procedure '"<<proc_name<<"'.\n";
             assert(false);
           }
-          int j = 0;
-          while(INTER[++i]!=")"){
-            lex::ENUM_TYPE type = lex::literal_or_var(INTER[i]);
-            int size            = lex::ERROR == type ?
-                                  PROCS[CP].VARS[INTER[i]].size :
-                                  stoi(intr::size_of(type).erase(0,1))/8;
-            if(size<8&&type==lex::ERROR) out_stream << "  movsx ";
-            else out_stream << "  mov ";
-            out_stream << syscall_args[j] << ", " << asm_get_value(INTER[i], PROCS[CP]) << "\n";
-            j++;
+          if(proc_name=="__asm"){
+            if(INTER[i+1]==";")i++;
+            while(INTER[++i]!=")"){
+              INTER[i].erase(0,1);
+              INTER[i].erase(INTER[i].size()-1,1);
+              out_stream << INTER[i] << "\n";
+              if(INTER[i+1]==";")i++;
+            }
+            i++;
           }
-          out_stream <<
-          "  call " << proc_name << "\n";
-          i++;
-          if(VAR_ASSIGN!=""){
-            Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
-            string outreg = get_reg(var_assign.size, "a");
-            out_stream << "  mov " << asm_var(var_assign) << ", "<<outreg<<"\n";
-            VAR_ASSIGN="";
+          else{
+            int j = 0;
+            while(INTER[++i]!=")"){
+              lex::ENUM_TYPE type = lex::literal_or_var(INTER[i]);
+              int size            = lex::ERROR == type ?
+                                    PROCS[CP].VARS[INTER[i]].size :
+                                    stoi(intr::size_of(type).erase(0,1))/8;
+              if(size<8&&type==lex::ERROR) out_stream << "  movsx ";
+              else out_stream << "  mov ";
+              out_stream << syscall_args[j] << ", " << asm_get_value(INTER[i], PROCS[CP]) << "\n";
+              j++;
+            }
+            out_stream <<
+            "  call " << proc_name << "\n";
+            i++;
+            if(VAR_ASSIGN!=""){
+              Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
+              string outreg = get_reg(var_assign.size, "a");
+              out_stream << "  mov " << asm_var(var_assign) << ", "<<outreg<<"\n";
+              VAR_ASSIGN="";
+            }
           }
         }
         else if(cur == "static"){
@@ -477,7 +462,8 @@ namespace comp{
             new_var.type        = VTBSS;
             PROCS[CP].VARS[sym] = new_var;
           }
-          if(INTER[++i]=="="){
+          if(INTER[i+1]=="="){
+            i++;
             PROCS[CP].VARS[sym].type = VTDATA;
             Variable var        = PROCS[CP].VARS[sym];
             string value        = INTER[++i];
@@ -499,6 +485,50 @@ namespace comp{
               break;
             }
           }
+          else{
+            Variable var = PROCS[CP].VARS[sym];
+            switch(size){
+              case 1:  BSS_SECTION += "  "+var.label+": resb 1\n";                    break;
+              case 2:  BSS_SECTION += "  "+var.label+": resw 1\n";                    break;
+              case 4:  BSS_SECTION += "  "+var.label+": resd 1\n";                    break;
+              case 8:  BSS_SECTION += "  "+var.label+": resq 1\n";                    break;
+              default: BSS_SECTION += "  "+var.label+": resb "+to_string(size)+"\n";  break;
+            }
+          }
+          i++;
+        }
+        else if(cur == "global"){
+          string var_name = INTER[++i];
+          Variable var;
+          bool found = false;
+          for(auto &p : PROCS){
+            if(p.second.VARS.find(var_name)!=p.second.VARS.end()){
+              Variable v = p.second.VARS[var_name];
+              if(v.type!=VTSTACK){
+                found = true;
+                var = v;
+                break;
+              }
+            }
+          }
+          if(!found){
+            cerr << "\033[1;31mCould not find a static variable called '"<<var_name<<"' in global grab.\033[0m\n";
+            assert(false);
+          }
+          PROCS[CP].VARS[var_name] = var;
+          i++;
+        }
+        else if(cur == "extern"){
+          i++;
+          Variable new_var;
+          int size   = stoi(INTER[++i].erase(0,1))/8;
+          string sym = INTER[++i];
+          new_var.byte_addr   = 0;
+          new_var.size        = size;
+          new_var.label       = sym.erase(0,1);
+          new_var.type        = VTBSS;
+          PROCS[CP].VARS[sym] = new_var;
+          DATA_SECTION       += "extern "+sym+"\n";
           i++;
         }
         else if(cur == "label"){
@@ -508,18 +538,25 @@ namespace comp{
         }
         else if(cur == "jmpc"){
           string label = INTER[++i];
+          bool inverse = INTER[i+1] == "!";
+          if(inverse) i++;
           string value = INTER[++i];
-          if(INTER[++i]=="!"){
-            i++;
+          if(value[0]=='?'){
             out_stream <<
             "  cmp " << asm_get_value(value, PROCS[CP]) << ", 0\n"
-            "  je "  << label << "\n";
+            "  "<<(inverse?"je":"jne")<<" "<< label << "\n";
           }
           else{
+            int size1 = stoi(INTER[++i].erase(0,1))/8;
+            int size2 = stoi(INTER[++i].erase(0,1))/8;
+            string reg1;
+            string reg2;
+            op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
             out_stream <<
-            "  cmp " << asm_get_value(value, PROCS[CP]) << ", 0\n"
-            "  jne " << label << "\n";
+            "  cmp "<<reg1<<", "<<reg2<<"\n"
+            "  " <<(inverse?INV_CMP_MAP[value]:CMP_MAP[value])<<" "<< label << "\n";
           }
+          i++;
         }
         else if(cur == "jmp"){
           string label = INTER[++i];
@@ -753,6 +790,30 @@ namespace comp{
             VAR_ASSIGN="";
           }
         }
+        else if(cur == ">>"){
+          int size1  = stoi(INTER[++i].erase(0,1))/8;
+          int size2  = stoi(INTER[++i].erase(0,1))/8;
+          out_stream <<
+          "  shr "<<asm_var(PROCS[CP].VARS[INTER[++i]])<<", "<<INTER[++i]<<"\n";
+          i++;
+          if(VAR_ASSIGN!=""){
+            cerr << "tf you doin\n";
+            assert(false);
+            VAR_ASSIGN="";
+          }
+        }
+        else if(cur == "<<"){
+          int size1  = stoi(INTER[++i].erase(0,1))/8;
+          int size2  = stoi(INTER[++i].erase(0,1))/8;
+          out_stream <<
+          "  shl "<<asm_var(PROCS[CP].VARS[INTER[++i]])<<", "<<INTER[++i]<<"\n";
+          i++;
+          if(VAR_ASSIGN!=""){
+            cerr << "tf you doin\n";
+            assert(false);
+            VAR_ASSIGN="";
+          }
+        }
         else if(cur == "&&"){
           int size1 = stoi(INTER[++i].erase(0,1))/8;
           int size2 = stoi(INTER[++i].erase(0,1))/8;
@@ -767,6 +828,30 @@ namespace comp{
           if(VAR_ASSIGN!=""){
             Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
             out_stream << "  mov " << asm_var(var_assign) << ", "<<get_reg(var_assign.size, "a")<<"\n";
+            VAR_ASSIGN="";
+          }
+        }
+        else if(cur == "-&"){
+          int size1 = stoi(INTER[++i].erase(0,1))/8;
+          int size2 = stoi(INTER[++i].erase(0,1))/8;
+          string reg1;
+          string reg2;
+          op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
+          out_stream <<
+          "  and "<<reg1<<", "<<reg2<<"\n";
+          i++;
+          if(VAR_ASSIGN!=""){
+            Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
+            if(var_assign.size==size1)
+              out_stream << "  mov " << asm_var(var_assign) << ", "<<reg1<<"\n";
+            else if(var_assign.size<size1){
+              out_stream << "  mov " << asm_var(var_assign) << ", "<<get_reg(var_assign.size, "a")<<"\n";
+            }
+            else if(var_assign.size>size1){
+              string outreg = get_reg(var_assign.size, "a");
+              out_stream << "  movsx " << outreg << ", " << reg1 << "\n"
+              "  mov " << asm_var(var_assign) << ", "<< outreg <<"\n";
+            }
             VAR_ASSIGN="";
           }
         }
@@ -789,7 +874,7 @@ namespace comp{
             case VTBSS:
             {
               out_stream <<
-              "  mov rax, "<< var.label <<"\n";
+              "  lea rax, ["<< var.label <<"]\n";
               if(VAR_ASSIGN!=""){
                 Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
                 string outreg = get_reg(var_assign.size, "a");
@@ -814,6 +899,31 @@ namespace comp{
                 out_stream << "  mov " << outreg << ", "<<WORD_MAP[var_assign.size]<<" [rax]\n"
                 "  mov " << asm_var(var_assign) << ", " << outreg<< "\n";
                 VAR_ASSIGN="";
+              }
+              else if(INTER[i+1]!=";"){
+                Variable value = PROCS[CP].VARS[INTER[++i]];
+                switch(value.size){
+                  case 1:
+                  out_stream <<
+                  "  mov dl, "<<asm_var(value)<<"\n"
+                  "  mov byte [rax], dl\n";
+                  break;
+                  case 2:
+                  out_stream <<
+                  "  mov dx, "<<asm_var(value)<<"\n"
+                  "  mov word [rax], dx\n";
+                  break;
+                  case 4:
+                  out_stream <<
+                  "  mov edx, "<<asm_var(value)<<"\n"
+                  "  mov dword [rax], edx\n";
+                  break;
+                  case 8:
+                  out_stream <<
+                  "  mov rdx, "<<asm_var(value)<<"\n"
+                  "  mov qword [rax], rdx\n";
+                  break;
+                }
               }
             }
             break;
@@ -872,56 +982,113 @@ namespace comp{
           }
         }
         else if(PROCS[CP].VARS.find(cur)!=PROCS[CP].VARS.end()){
-          if(VAR_ASSIGN!=""){
-            Variable cvar       = PROCS[CP].VARS[cur];
-            Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
-            int size = cvar.size;
-            if(size==1||size==2||size==4||size==8){
-              out_stream<<
-              "  mov "<<get_reg(cvar.size, "a")<<", "<<asm_var(cvar)<<"\n"
-              "  mov "<<asm_var(var_assign)<<", "<<get_reg(cvar.size, "a")<<"\n";
-              VAR_ASSIGN="";
-              i++;
+          Variable cvar = PROCS[CP].VARS[cur];
+          switch(cvar.type){
+            case VTSTACK:
+            if(VAR_ASSIGN!=""){
+              Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
+              int size = cvar.size;
+              if(size==1||size==2||size==4||size==8){
+                out_stream<<
+                "  mov "<<get_reg(cvar.size, "a")<<", "<<asm_var(cvar)<<"\n"
+                "  mov "<<asm_var(var_assign)<<", "<<get_reg(cvar.size, "a")<<"\n";
+                VAR_ASSIGN="";
+                i++;
+              }
+              else{
+                int ptrc = cvar.byte_addr;
+                int ptrv = var_assign.byte_addr;
+                while(size>0){
+                  if(size>=8){
+                    size-=8;
+                    out_stream<<
+                    "  mov rax, qword [rbp-"<<ptrc-size<<"]\n"
+                    "  mov qword [rbp-"<<ptrv-size<<"]\n";
+                  }
+                  else if(size>=4){
+                    size-=4;
+                    out_stream<<
+                    "  mov eax, dword [rbp-"<<ptrc-size<<"]\n"
+                    "  mov dword [rbp-"<<ptrv-size<<"]\n";
+                  }
+                  else if(size>=2){
+                    size-=2;
+                    out_stream<<
+                    "  mov ax, word [rbp-"<<ptrc-size<<"]\n"
+                    "  mov word [rbp-"<<ptrv-size<<"]\n";
+                  }
+                  else if(size==1){
+                    size-=1;
+                    out_stream<<
+                    "  mov al, byte [rbp-"<<ptrc-size<<"]\n"
+                    "  mov byte [rbp-"<<ptrv-size<<"]\n";
+                  }
+                }
+                VAR_ASSIGN="";
+                i++;
+              }
             }
             else{
-              int ptrc = cvar.byte_addr;
-              int ptrv = var_assign.byte_addr;
-              while(size>0){
-                if(size>=8){
-                  size-=8;
-                  out_stream<<
-                  "  mov rax, qword [rbp-"<<ptrc-size<<"]\n"
-                  "  mov qword [rbp-"<<ptrv-size<<"]\n";
+              if(INTER[++i]=="=") VAR_ASSIGN = cur;
+              else{
+                cerr << "\033[1;31mHanging variable of '"<<cur.erase(0,1)<<"' in compiler stage.\033[0m\n";
+                assert(false);
+              }
+            }
+            break;
+            case VTDATA:
+            case VTBSS:
+            if(VAR_ASSIGN!=""){
+              Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
+              int size = var_assign.size;
+              if(size==1||size==2||size==4||size==8){
+                out_stream<<
+                "  mov "<<asm_var(var_assign)<<", "<<cvar.label<<"\n";
+                VAR_ASSIGN="";
+                i++;
+              }
+              else{
+                int ptrc = cvar.byte_addr;
+                int ptrv = var_assign.byte_addr;
+                while(size>0){
+                  if(size>=8){
+                    size-=8;
+                    out_stream<<
+                    "  mov rax, qword [rbp-"<<ptrc-size<<"]\n"
+                    "  mov qword [rbp-"<<ptrv-size<<"]\n";
+                  }
+                  else if(size>=4){
+                    size-=4;
+                    out_stream<<
+                    "  mov eax, dword [rbp-"<<ptrc-size<<"]\n"
+                    "  mov dword [rbp-"<<ptrv-size<<"]\n";
+                  }
+                  else if(size>=2){
+                    size-=2;
+                    out_stream<<
+                    "  mov ax, word [rbp-"<<ptrc-size<<"]\n"
+                    "  mov word [rbp-"<<ptrv-size<<"]\n";
+                  }
+                  else if(size==1){
+                    size-=1;
+                    out_stream<<
+                    "  mov al, byte [rbp-"<<ptrc-size<<"]\n"
+                    "  mov byte [rbp-"<<ptrv-size<<"]\n";
+                  }
                 }
-                else if(size>=4){
-                  size-=4;
-                  out_stream<<
-                  "  mov eax, dword [rbp-"<<ptrc-size<<"]\n"
-                  "  mov dword [rbp-"<<ptrv-size<<"]\n";
-                }
-                else if(size>=2){
-                  size-=2;
-                  out_stream<<
-                  "  mov ax, word [rbp-"<<ptrc-size<<"]\n"
-                  "  mov word [rbp-"<<ptrv-size<<"]\n";
-                }
-                else if(size==1){
-                  size-=1;
-                  out_stream<<
-                  "  mov al, byte [rbp-"<<ptrc-size<<"]\n"
-                  "  mov byte [rbp-"<<ptrv-size<<"]\n";
-                }
+                VAR_ASSIGN="";
+                i++;
               }
               VAR_ASSIGN="";
-              i++;
             }
-          }
-          else{
-            if(INTER[++i]=="=") VAR_ASSIGN = cur;
             else{
-              cerr << "\033[1;31mHanging variable of '"<<cur.erase(0,1)<<"' in compiler stage.\033[0m\n";
-              assert(false);
+              if(INTER[++i]=="=") VAR_ASSIGN = cur;
+              else{
+                cerr << "\033[1;31mHanging variable of '"<<cur.erase(0,1)<<"' in compiler stage.\033[0m\n";
+                assert(false);
+              }
             }
+            break;
           }
         }
         else if(lex::literal_or_var(cur)!=lex::ERROR){
@@ -990,9 +1157,10 @@ namespace comp{
           cerr << i << "\n"
           << "BEFORE: " << INTER[i+1] << "\n"
           << "AFTER: "  << INTER[i-1] << "\n";
-          cerr << "\033[1;31mUnhandled token of '"<< cur <<"' in compilation.\033[0m\n";
+          cerr << "\033[1;31mUnhandled token of '"<< cur <<"' in compilation on intermediate line "<<INTER_LINE<<".\033[0m\n";
           assert(false);
         }
+        if(INTER[i]==";") INTER_LINE++;
       }
       out_stream << DATA_SECTION << "\n" << BSS_SECTION << "\n";
       printf("Done converting intermediate to NASM!\n");

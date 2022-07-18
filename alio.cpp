@@ -33,9 +33,9 @@ namespace flags{
     }
   }
   
-  // void EXEC_FILE_SET(string EXEC_FILENAME){
-  //   EXEC_FILE = EXEC_FILENAME;
-  // }
+  void EXEC_FILE_SET(string EXEC_FILENAME){
+    options::EXEC_FILE = EXEC_FILENAME;
+  }
   
   void ASMFLAG(string NA){
     options::KEEP_ASM = true;
@@ -56,9 +56,9 @@ int main(int argc, char** argv){
   string file_flag_desc = "Provides .alio file to compiler (Required).";
   prox.AddFlag(file_flag, flags::ALIO_FILE, file_flag_desc, 1);
   
-  // string exec_flag = "-o";
-  // string exec_flag_desc = "Name the exec file.";
-  // prox.AddFlag(exec_flag, flags::EXEC_FILE_SET, exec_flag_desc, 1);
+  string exec_flag = "-o";
+  string exec_flag_desc = "Name the exec file.";
+  prox.AddFlag(exec_flag, flags::EXEC_FILE_SET, exec_flag_desc, 1);
   
   string target_flag = "-t";
   string target_flag_desc = "Provides the target to the compiler. (elf64 or elf32)";
@@ -85,12 +85,20 @@ int main(int argc, char** argv){
   stringstream ss;
   
   //Compile Alio
-  lex::LEXER lexer(alio_file.c_str());
-  vector<lex::Token> Tokens = lexer.run();
-  intr::INTERMEDIATE intr(Tokens);
-  vector<string> INTER = intr.run();
-  comp::COMPILER compiler(asm_file, INTER);
-  compiler.run();
+  {
+    
+    lex::LEXER *lexer = new lex::LEXER(alio_file.c_str());
+    vector<lex::Token> Tokens = lexer->run();
+    delete lexer;
+    intr::INTERMEDIATE *intr = new intr::INTERMEDIATE(Tokens);
+    vector<string> INTER = intr->run();
+    delete intr;
+    comp::COMPILER *compiler = new comp::COMPILER(asm_file, INTER);
+    compiler->run();
+    delete compiler;
+  }
+  //Additional Clean up
+  
   
   string elf_target;
   string linker_target;
@@ -114,7 +122,7 @@ int main(int argc, char** argv){
   cerr << char_line << "\n";
   
   //Link Program
-  ss << "ld -m "<< linker_target <<" -e main -o " << options::FILE_BASENAME << " " << options::FILE_BASENAME << ".o ";
+  ss << "ld -m "<< linker_target <<" -e main -o " << (options::EXEC_FILE=="" ? options::FILE_BASENAME : options::EXEC_FILE) << " " << options::FILE_BASENAME << ".o ";
   cmd_line = ss.str();
   char_line = cmd_line.c_str();
   ss.str("");
@@ -123,7 +131,7 @@ int main(int argc, char** argv){
   
   //Run
   cout << "PROGRAM OUTPUT:\n";
-  ss << "./" << options::FILE_BASENAME;
+  ss << "./" << (options::EXEC_FILE=="" ? options::FILE_BASENAME : options::EXEC_FILE);
   cmd_line = ss.str();
   char_line = cmd_line.c_str();
   ss.str("");

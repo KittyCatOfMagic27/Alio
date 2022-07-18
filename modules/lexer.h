@@ -10,6 +10,8 @@
 #include <stdbool.h>
 #include <algorithm>
 #include <unordered_map>
+#include <unistd.h>
+#include <limits.h>
 
 using namespace std;
 
@@ -17,7 +19,7 @@ namespace lex{
   //ENUMS AND STUCTS
   enum ENUM_TYPE{
     //Error
-    ERROR,
+    ERROR = 0,
     //Types
     UINT,
     INT,
@@ -41,6 +43,9 @@ namespace lex{
     ECMP,
     NECMP,
     AND,
+    BIT_AND,
+    SHL,
+    SHR,
     DEREF,
     CALL,
     AMPERSAND,
@@ -54,8 +59,11 @@ namespace lex{
     POP,
     SYSCALL,
     STATIC,
+    EXTERN,
+    GLOBAL,
     WHILE,
     IF,
+    ELSE,
     //Symbols
     OPARA,
     CPARA,
@@ -106,7 +114,11 @@ namespace lex{
     "ECMP",
     "NECMP",
     "AND",
+    "BIT_AND",
+    "SHL",
+    "SHR",
     "DEREF",
+    "CALL",
     "AMPERSAND",
     //Keywords
     "PROC",
@@ -114,13 +126,15 @@ namespace lex{
     "BEGIN",
     "IN",
     "OUT",
-    "CALL",
     "PUSH",
     "POP",
     "SYSCALL",
     "STATIC",
+    "EXTERN",
+    "GLOBAL",
     "WHILE",
     "IF",
+    "ELSE",
     //Symbols
     "OPARA",
     "CPARA",
@@ -134,7 +148,7 @@ namespace lex{
     "DEFP", // PTR
     "DEFB", // BOOL
     "DEFC", // CHAR
-    "DEFS"  // STRING
+    "DEFS", // STRING
   });
   vector<string> PTR_LIST;
   unordered_map<string, ENUM_TYPE> KEYWORD_MAP({
@@ -143,11 +157,14 @@ namespace lex{
     {"out",     OUT},
     {"begin",   BEGIN},
     {"static",  STATIC},
+    {"extern",  EXTERN},
+    {"global",  GLOBAL},
     {"push",    PUSH},
     {"pop",     POP},
     {"syscall", SYSCALL},
     {"while",   WHILE},
     {"if",      IF},
+    {"else",    ELSE},
     {"(",       OPARA},
     {")",       CPARA},
     {"[",       OSQRB},
@@ -161,6 +178,8 @@ namespace lex{
     {"@",       DEREF},
     {"++",      INC},
     {"--",      DEC},
+    {">>",      SHR},
+    {"<<",      SHL},
     {";",       SEMICOLON},
     {"<",       LCMP},
     {">",       GCMP},
@@ -168,7 +187,8 @@ namespace lex{
     {">=",      GECMP},
     {"=",       ECMP},
     {"!=",      NECMP},
-    {"&&",      AND}
+    {"&&",      AND},
+    {"-&",      BIT_AND},
   });
   
   //UTIL
@@ -297,9 +317,9 @@ namespace lex{
     void parse(){
       printf("Parsing...\n");
       int LIB_OFFSET = 0;
-      vector<string> SYM_TABLE({"+","-","/","*","%","&",";;","(",")",";","[","]","@","++","--","<",">","<=",">=","=","!=","&&"});
+      vector<string> SYM_TABLE({"+","-","/","*","%","&",";;","(",")",";","[","]","@","++","--","<",">","<=",">=","=","!=","&&","<<",">>","-&"});
       vector<Token> VAR_TKS;
-      vector<string> PROCS;
+      vector<string> PROCS({"__asm"});
       unordered_map<string, int> VARS;
       unordered_map<string, string> CONSTS;
       for(int LINE_ITER = 0; LINE_ITER < Lines.size(); LINE_ITER++){
@@ -379,7 +399,7 @@ namespace lex{
             VAR_TKS.push_back(result);
             VARS[result.value] = VAR_TKS.size()-1;
           }
-          else if(word==""||word==" "){
+          else if(word==""||word==" "||word=="\n"||word=="\t"){
             
           } //temp fix, idfk wth
           else if(KEYWORD_MAP.find(word)!=KEYWORD_MAP.end()){
@@ -409,12 +429,18 @@ namespace lex{
             if(split_line[++i]=="include"){
               if(split_line[++i]=="static"){
                 if(split_line[++i]=="<"){
-                  string fd = "./include/"+split_line[++i]+".adpl";
+                  char result[ PATH_MAX ];
+                  size_t count = readlink( "/proc/self/exe", result, PATH_MAX );
+                  int j = count;
+                  string path(result);
+                  while(j > 0) if(path[--j]=='/') break;
+                  path.erase(j+1);
+                  string fd = path+"include/"+split_line[++i]+".alio";
                   i++;
                   string line;
                   ifstream source_code;
                   source_code.open(fd.c_str());
-                  int j = LINE_NUMBER+1;
+                  j = LINE_ITER+1;
                   if(source_code.is_open()){
                     while(getline(source_code,line)){
                       Lines.insert(Lines.begin()+j, line);
@@ -473,6 +499,17 @@ namespace lex{
         Token semicolon;
         semicolon.type = SEMICOLON;
         if(split_line.size()>0&&semicolonTR&&Tokens[Tokens.size()-1].type!=SEMICOLON) Tokens.push_back(semicolon);
+      }
+      if(options::DEBUGMODE){
+        for(lex::Token &tk : Tokens){
+          cout << lex::TYPE_NAMES[tk.type] << " ";
+          if(tk.value!=""){
+            cout << tk.value << " ";
+          }
+          if(tk.type==lex::SEMICOLON){
+            cout << "\n";
+          }
+        }
       }
       printf("Done Parsing!\n");
     }
@@ -538,6 +575,9 @@ namespace lex{
           case LECMP:
           case NECMP:
           case AND:
+          case SHR:
+          case SHL:
+          case BIT_AND:
             prev = Tokens[i-1];
             if(prev.type<UINT||prev.type>CHAR){
               cerr << "\033[1;31m"<<FILENAME<<":"<<tk.line<<":First agrument of '"<< TYPE_NAMES[tk.type] <<"' is not a Valid Type.\033[0m\n";

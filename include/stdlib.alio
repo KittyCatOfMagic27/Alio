@@ -1,0 +1,366 @@
+# FLAGS
+;;define O_RDONLY 0
+;;define O_WRONLY 1
+;;define O_RDWR 2
+# MODES
+;;define S_IRWXU 1792
+# OUTSTREAMS
+;;define STDERR 2
+;;define STDOUT 1
+;;define STDIN 0
+# MISC
+;;define NEGONE 4294967294
+
+#SYSCALL WRAPPERS
+proc SYS_write
+in uint fd
+in ptr buffer
+in uint size
+begin
+  syscall(1 fd buffer size)
+end
+
+proc SYS_read
+in uint fd
+in ptr buffer
+in uint size
+out uint read_amount
+begin
+  read_amount syscall(0 fd buffer size)
+end
+
+proc SYS_openfd
+in ptr filename
+in uint flags
+in uint mode
+out uint fd
+begin
+  fd syscall(2 filename flags mode)
+end
+
+proc SYS_closefd
+in uint fd
+begin
+  syscall(3 fd)
+end
+
+proc SYS_fstat
+in uint fd
+in ptr fstat_struct # buffer[144]
+begin
+  syscall(5 fd fstat_struct)
+end
+
+proc SYS_exit
+in uint error_code
+begin
+  syscall(60 error_code)
+end
+
+proc sizeof_file
+in uint fd
+out uint size
+begin
+  string fstat_struct[144]
+  ptr y &fstat_struct
+  syscall(5 fd y)
+  y y+48
+  size @y
+end
+
+#UTIL
+proc printu
+in uint fd
+in uint x
+begin
+  __asm(
+    "  mov    eax, edi"
+    "  mov    ecx, 10"
+    "  push   rcx"
+    "  mov    rsi, rsp"
+    "  sub    rsp, 16"
+    ".toascii_digit:"
+    "  xor    edx, edx"
+    "  div    ecx"
+    "  add    edx, 48"
+    "  dec    rsi"
+    "  mov    [rsi], dl"
+    "  test   eax,eax"
+    "  jnz  .toascii_digit"
+    "  mov    eax, 1"
+    "  mov    edi, 1"
+    "  lea    edx, [rsp+16]"
+    "  sub    edx, esi"
+    "  syscall"
+    "  add rsp, 24"
+  )
+end
+
+proc printi
+in uint fd
+in uint x
+begin
+  if(x<NEGONE)
+    x NEGONE-x
+    x x+2
+    char y "-"
+    ptr z &y
+    SYS_write(fd z 1)
+  end
+  printu(fd x)
+end
+
+proc printc
+in uint fd
+in char x
+begin
+  ptr y &x
+  syscall(1 fd y 1)
+end
+
+proc strlen
+in ptr str
+out uint len
+begin
+  ptr beginning str
+  char c @str
+  while(c)
+    str++
+    c @str
+  end
+  len str-beginning
+end
+
+proc prints
+in uint fd
+in ptr str
+begin
+  uint len strlen(str)
+  syscall(1 fd str len)
+end
+
+proc __print_error
+in int error
+begin
+  error NEGONE-error
+  error error+2
+  string error_msg[256]
+  ptr eptr &error_msg
+  long null 0
+  uint i 0
+  while(i<256)
+    @eptr null
+    eptr eptr + 8
+    i i + 8
+  end
+  eptr &error_msg
+  if(error=1)
+    error_msg "Operation not permitted."
+  end
+  if(error=2)
+    error_msg "No such file or directory."
+  end
+  if(error=3)
+    error_msg "No such process."
+  end
+  if(error=4)
+    error_msg "Interrupted system call."
+  end
+  if(error=5)
+    error_msg "I/O error."
+  end
+  if(error=6)
+    error_msg "No such device or address."
+  end
+  if(error=7)
+    error_msg "Argument list too long."
+  end
+  if(error=8)
+    error_msg "Exec format error."
+  end
+  if(error=9)
+    error_msg "Bad file number."
+  end
+  if(error=10)
+    error_msg "No child processes."
+  end
+  if(error=11)
+    error_msg "Try again."
+  end
+  if(error=12)
+    error_msg "Out of memory."
+  end
+  if(error=13)
+    error_msg "Permission denied."
+  end
+  if(error=14)
+    error_msg "Bad address."
+  end
+  eptr &error_msg
+  prints(STDERR eptr)
+end
+
+proc strcmp
+in ptr str1
+in ptr str2
+out bool equals?
+begin
+  uint len1 strlen(str1)
+  uint len2 strlen(str2)
+  equals? len1 = len2
+  if(equals?)
+    bool continue true
+    bool i 0
+    while(continue)
+      char c1 @str1
+      char c2 @str2
+      equals? c1 = c2
+      bool nend i < len1
+      continue equals? && nend
+      i++
+      str1++
+      str2++
+    end
+  end
+end
+
+proc read_stdin
+in ptr buffer
+in uint length
+out uint len
+begin
+  length SYS_read(STDIN buffer length)
+  if(length<0)
+    char newline 10
+    string error "Unable to read stdin."
+    ptr mp &error
+    SYS_write(STDERR mp 22)
+    string msg "Error: "
+    mp &msg
+    SYS_write(STDERR mp 7)
+    __print_error(length)
+    printc(STDERR newline)
+    SYS_exit(1)
+  end
+  len length
+end
+
+proc readf
+in uint fd
+in ptr buffer
+in uint length
+out uint len
+begin
+  length SYS_read(fd buffer length)
+  if(length<0)
+    char newline 10
+    string error "Unable to read file."
+    ptr mp &error
+    SYS_write(STDERR mp 21)
+    string msg "Error: "
+    mp &msg
+    SYS_write(STDERR mp 7)
+    __print_error(length)
+    printc(STDERR newline)
+    SYS_exit(1)
+  end
+  len length
+end
+
+proc openf
+in ptr filename
+out uint fd
+begin
+  fd SYS_openfd(filename O_RDWR S_IRWXU)
+  if(fd<0)
+    char newline 10
+    string error "Unable to open file."
+    ptr mp &error
+    SYS_write(STDERR mp 21)
+    string msg "Error: "
+    mp &msg
+    SYS_write(STDERR mp 7)
+    __print_error(fd)
+    printc(STDERR newline)
+    SYS_exit(1)
+  end
+end
+
+proc tohex8 #Make this for tohex64 so you can print pointers
+in char c
+in ptr buffer
+begin
+  char save c
+  c >> 4
+  bool letter? c >= 10
+  if(letter?)
+    c c+7
+  end
+  c c+48
+  @buffer c
+  buffer++
+  c save
+  c c -& 15
+  letter? c >= 10
+  if(letter?)
+    c c+7
+  end
+  c c+48
+  @buffer c
+end
+
+proc tohex32
+in uint c
+in ptr buffer
+begin
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+end
+
+proc tohex64
+in long c
+in ptr buffer
+begin
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+  c >> 8
+  buffer buffer + 2
+  tohex8(c buffer)
+end
+
+proc printhex64
+in uint fd
+in long hex
+begin
+  string buffer[16]
+  string prefix "0x"
+  ptr y &buffer
+  tohex64(hex y)
+  y &prefix
+  SYS_write(fd y 18)
+end

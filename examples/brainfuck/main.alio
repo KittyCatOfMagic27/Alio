@@ -1,0 +1,141 @@
+;;include static <stdlib>
+
+proc debug_print
+in uint fd
+in uint size
+in ptr filename
+in ptr program
+begin
+  string msg[256] "File directory:   "
+  ptr __msg &msg
+  prints(STDOUT __msg)
+  printi(STDOUT fd)
+  printc(STDOUT 10)
+  
+  msg "Size of file:     "
+  prints(STDOUT __msg)
+  printi(STDOUT size)
+  printc(STDOUT 10)
+  
+  msg "Filename:         "
+  prints(STDOUT __msg)
+  prints(STDOUT filename)
+  printc(STDOUT 10)
+  
+  msg "Program:          "
+  prints(STDOUT __msg)
+  prints(STDOUT program)
+  printc(STDOUT 10)
+  
+  msg "Filename address: "
+  prints(STDOUT __msg)
+  printhex64(STDOUT filename)
+  printc(STDOUT 10)
+  
+  msg "Program address:  "
+  prints(STDOUT __msg)
+  printhex64(STDOUT program)
+  printc(STDOUT 10)
+end
+
+
+proc main
+begin
+  # Get brainfuck file
+  # string filename[256]
+  # ptr __filename &filename
+  # static string prompt "Please provide filename: "
+  # prints(STDOUT prompt)
+  # read_stdin(__filename 256)
+  # prints(STDOUT __filename)
+  static string filename "./main.bf"
+  ptr __filename &filename
+  uint fd openf(__filename)
+  # Get Program
+  uint size sizeof_file(fd)
+  static string program[1000]
+  ptr __program &program
+  debug_print(fd size __filename __program)
+  uint length readf(fd __program size)
+  static string tape[3000]
+  ptr pointer tape
+  uint i 0
+  bool byte 0
+  # Read Program
+  while(i<size)
+    char x @__program
+    if(x=">")
+      pointer++
+    end
+    if(x="<")
+      pointer--
+    end
+    if(x="+")
+      byte @pointer
+      byte++
+      @pointer byte
+    end
+    if(x="-")
+      byte @pointer
+      byte--
+      @pointer byte
+    end
+    if(x=".")
+      byte @pointer
+      printc(STDOUT byte)
+    end
+    if(x=",")
+      char output 0
+      ptr __output &output
+      SYS_read(STDIN __output 1)
+    end
+    if(x="[")
+      byte @pointer
+      if(byte=0)
+        uint block_counter 1
+        while(block_counter>0)
+          i++
+          __program++
+          x @__program
+          if(x="[")
+            block_counter++
+          end
+          if(x="]")
+            block_counter--
+          end
+        end
+        x @__program
+        if(x != "]")
+          printc(STDERR "F")
+          SYS_exit(1)
+        end
+      end
+    end
+    if(x="]")
+      byte @pointer
+      if(byte!=0)
+      uint block_counter 1
+        while(block_counter>0)
+          i--
+          __program--
+          x @__program
+          if(x="[")
+            block_counter--
+          end
+          if(x="]")
+            block_counter--
+          end
+        end
+        x @__program
+        if(x != "[")
+          printc(STDERR "f")
+          SYS_exit(1)
+        end
+      end
+    end
+    i++
+    __program++
+  end
+  # Close File
+  SYS_closefd(fd)
+end
