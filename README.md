@@ -12,9 +12,6 @@ Compiling and using alio for now, this will be changed ALOT in the future.
 usr@penguin:~/ALIO$ g++ alio.cpp -o alio
 usr@penguin:~/ALIO$ ./alio --help
 usr@penguin:~/ALIO$ ./alio -f main.alio
-### TEMPORARY BECAUSE SOMETHING THAT SHOULD WORK DOESN'T WORK ###
-usr@penguin:~/ALIO$ nasm -f elf64 -o main.o main.asm
-usr@penguin:~/ALIO$ ld -m elf_x86_64 -e main -o main main.o
 usr@penguin:~/ALIO$ ./main
 ```
 
