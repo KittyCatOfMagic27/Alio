@@ -16,8 +16,10 @@ namespace options{
   COMP_TARGETS target;
   string FILE_BASENAME;
   string EXEC_FILE;
+  string INTER_FILE;
   bool KEEP_ASM = false;
   bool DEBUGMODE = false;
+  bool INTERMODE = false;
 }
 
 #endif

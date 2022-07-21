@@ -149,6 +149,33 @@ namespace comp{
         assert(false);
       }
       INTER = _INTER;
+      setup();
+    }
+    
+    COMPILER(string &wf, const char* rf){
+      vector<string> Lines;
+      string line;
+      ifstream source_code;
+      source_code.open(rf);
+      if(source_code.is_open()){
+        while(getline(source_code,line)){
+          Lines.push_back(line);
+        }
+        source_code.close();
+      }
+      else {
+        fprintf(stderr, "\033[1;31mUnable to open file.\033[0m\n");
+        assert(false);
+      }
+      for(string &s : Lines){
+        vector<string> symbols({";"}), split_line = lex::split(s, symbols);
+        for(int i = 0; i < split_line.size(); i++) INTER.push_back(split_line[i]);
+      }
+      out_stream.open(wf.c_str());
+      setup();
+    }
+    
+    void setup(){
       syscall_args = {
         "rax",
         "rdi",
@@ -228,6 +255,7 @@ namespace comp{
         to_nasmX86_64();
         break;
       }
+      out_stream.close();
     }
     
     private:
@@ -793,26 +821,40 @@ namespace comp{
         else if(cur == ">>"){
           int size1  = stoi(INTER[++i].erase(0,1))/8;
           int size2  = stoi(INTER[++i].erase(0,1))/8;
-          out_stream <<
-          "  shr "<<asm_var(PROCS[CP].VARS[INTER[++i]])<<", "<<INTER[++i]<<"\n";
-          i++;
           if(VAR_ASSIGN!=""){
-            cerr << "tf you doin\n";
-            assert(false);
+            Variable var = PROCS[CP].VARS[INTER[++i]];
+            Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
+            string reg = get_reg(var.size, "a");
+            out_stream <<
+            "  mov " << reg << ", " << asm_var(var) << "\n"
+            "  shr " << reg << ", " << INTER[++i] << "\n"
+            "  mov " << asm_var(var_assign) << ", "<<get_reg(var_assign.size, "a")<<"\n";
             VAR_ASSIGN="";
           }
+          else{
+            out_stream <<
+            "  shr "<<asm_var(PROCS[CP].VARS[INTER[++i]])<<", "<<INTER[++i]<<"\n";
+          }
+          i++;
         }
         else if(cur == "<<"){
           int size1  = stoi(INTER[++i].erase(0,1))/8;
           int size2  = stoi(INTER[++i].erase(0,1))/8;
-          out_stream <<
-          "  shl "<<asm_var(PROCS[CP].VARS[INTER[++i]])<<", "<<INTER[++i]<<"\n";
-          i++;
           if(VAR_ASSIGN!=""){
-            cerr << "tf you doin\n";
-            assert(false);
+            Variable var = PROCS[CP].VARS[INTER[++i]];
+            Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
+            string reg = get_reg(var.size, "a");
+            out_stream <<
+            "  mov " << reg << ", " << asm_var(var) << "\n"
+            "  shl " << reg << ", " << INTER[++i] << "\n"
+            "  mov " << asm_var(var_assign) << ", "<<get_reg(var_assign.size, "a")<<"\n";
             VAR_ASSIGN="";
           }
+          else{
+            out_stream <<
+            "  shr "<<asm_var(PROCS[CP].VARS[INTER[++i]])<<", "<<INTER[++i]<<"\n";
+          }
+          i++;
         }
         else if(cur == "&&"){
           int size1 = stoi(INTER[++i].erase(0,1))/8;
@@ -839,6 +881,30 @@ namespace comp{
           op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
           out_stream <<
           "  and "<<reg1<<", "<<reg2<<"\n";
+          i++;
+          if(VAR_ASSIGN!=""){
+            Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
+            if(var_assign.size==size1)
+              out_stream << "  mov " << asm_var(var_assign) << ", "<<reg1<<"\n";
+            else if(var_assign.size<size1){
+              out_stream << "  mov " << asm_var(var_assign) << ", "<<get_reg(var_assign.size, "a")<<"\n";
+            }
+            else if(var_assign.size>size1){
+              string outreg = get_reg(var_assign.size, "a");
+              out_stream << "  movsx " << outreg << ", " << reg1 << "\n"
+              "  mov " << asm_var(var_assign) << ", "<< outreg <<"\n";
+            }
+            VAR_ASSIGN="";
+          }
+        }
+        else if(cur == "|"){
+          int size1 = stoi(INTER[++i].erase(0,1))/8;
+          int size2 = stoi(INTER[++i].erase(0,1))/8;
+          string reg1;
+          string reg2;
+          op_init(size1, size2, reg1, reg2, i, PROCS[CP]);
+          out_stream <<
+          "  or "<<reg1<<", "<<reg2<<"\n";
           i++;
           if(VAR_ASSIGN!=""){
             Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
@@ -888,6 +954,7 @@ namespace comp{
         }
         else if(cur == "@"){
           Variable var = PROCS[CP].VARS[INTER[++i]];
+          int size = INTER[i+1][0]=='i' ? stoi(INTER[++i].erase(0,1))/8 : -1;
           switch(var.type){
             case VTSTACK:
             {
@@ -901,26 +968,27 @@ namespace comp{
                 VAR_ASSIGN="";
               }
               else if(INTER[i+1]!=";"){
-                Variable value = PROCS[CP].VARS[INTER[++i]];
-                switch(value.size){
+                string value = INTER[++i];
+                if(size==-1) size = PROCS[CP].VARS[value].size;
+                switch(size){
                   case 1:
                   out_stream <<
-                  "  mov dl, "<<asm_var(value)<<"\n"
+                  "  mov dl, "<<asm_get_value(value, PROCS[CP])<<"\n"
                   "  mov byte [rax], dl\n";
                   break;
                   case 2:
                   out_stream <<
-                  "  mov dx, "<<asm_var(value)<<"\n"
+                  "  mov dx, "<<asm_get_value(value, PROCS[CP])<<"\n"
                   "  mov word [rax], dx\n";
                   break;
                   case 4:
                   out_stream <<
-                  "  mov edx, "<<asm_var(value)<<"\n"
+                  "  mov edx, "<<asm_get_value(value, PROCS[CP])<<"\n"
                   "  mov dword [rax], edx\n";
                   break;
                   case 8:
                   out_stream <<
-                  "  mov rdx, "<<asm_var(value)<<"\n"
+                  "  mov rdx, "<<asm_get_value(value, PROCS[CP])<<"\n"
                   "  mov qword [rax], rdx\n";
                   break;
                 }

@@ -24,6 +24,7 @@ namespace lex{
     UINT,
     INT,
     LONG,
+    SHORT,
     PTR,
     BOOL,
     CHAR,
@@ -44,6 +45,7 @@ namespace lex{
     NECMP,
     AND,
     BIT_AND,
+    BIT_OR,
     SHL,
     SHR,
     DEREF,
@@ -78,6 +80,9 @@ namespace lex{
     DEFB, // BOOL
     DEFC, // CHAR
     DEFS, // STRING
+    DEFSHORT, //SHORT
+    //Temp
+    TEMP,
   };
   struct Token{
     ENUM_TYPE type;
@@ -95,6 +100,7 @@ namespace lex{
     "UINT",
     "INT",
     "LONG",
+    "SHORT",
     "PTR",
     "BOOL",
     "CHAR",
@@ -115,6 +121,7 @@ namespace lex{
     "NECMP",
     "AND",
     "BIT_AND",
+    "BIT_OR",
     "SHL",
     "SHR",
     "DEREF",
@@ -149,6 +156,9 @@ namespace lex{
     "DEFB", // BOOL
     "DEFC", // CHAR
     "DEFS", // STRING
+    "DEFSHORT", //SHORT
+    //Temp
+    "TEMP",
   });
   vector<string> PTR_LIST;
   unordered_map<string, ENUM_TYPE> KEYWORD_MAP({
@@ -189,6 +199,15 @@ namespace lex{
     {"!=",      NECMP},
     {"&&",      AND},
     {"-&",      BIT_AND},
+    {"|",       BIT_OR},
+    {"uint",    UINT},
+    {"long",    LONG},
+    {"int",     INT},
+    {"bool",    BOOL},
+    {"char",    CHAR},
+    {"ptr",     PTR},
+    {"string",  STRING},
+    {"short",   SHORT}
   });
   
   //UTIL
@@ -283,6 +302,19 @@ namespace lex{
     return splitted;
   }
   
+  bool isOp(ENUM_TYPE type){
+    return type>=ADD&&type<=AMPERSAND&&type!=CALL;
+  }
+  bool isType(ENUM_TYPE type){
+    return type>=UINT&&type<=STRING;
+  }
+  bool isDef(ENUM_TYPE type){
+    return type>=DEFU&&type<=DEFS;
+  }
+  bool isType(string type){
+    return type=="uint"||type=="long"||type=="int"||type=="bool"||type=="char"||type=="ptr"||type=="string"||type=="short";
+  }
+  
   //LEXER
   class LEXER{
     public:
@@ -309,15 +341,61 @@ namespace lex{
     vector <Token> run(){
       parse();
       grammer_check();
+      postprocess();
       return Tokens;
     }
     
     private:
     
+    ENUM_TYPE defToType(ENUM_TYPE def){
+      ENUM_TYPE type;
+      switch(def){
+        case DEFU: type = UINT;   break;
+        case DEFI: type = INT;    break;
+        case DEFL: type = LONG;   break;
+        case DEFP: type = PTR;    break;
+        case DEFB: type = BOOL;   break;
+        case DEFC: type = CHAR;   break;
+        case DEFS: type = STRING; break;
+        case DEFSHORT: type = SHORT; break;
+      }
+      return type;
+    }
+    int opInAmount(ENUM_TYPE op){
+      int x;
+      switch(op){
+        case ADD:
+        case SUB:
+        case MULT:
+        case DIV:
+        case MOD:
+        case GCMP:
+        case LCMP:
+        case LECMP:
+        case GECMP:
+        case ECMP:
+        case NECMP:
+        case AND:
+        case BIT_AND:
+        case BIT_OR:
+        case SHL:
+        case SHR:
+        x = 2;
+        break;
+        case INC:
+        case DEC:
+        case DEREF:
+        case AMPERSAND:
+        x = 1;
+        break;
+      }
+      return x;
+    }
+    
     void parse(){
       printf("Parsing...\n");
       int LIB_OFFSET = 0;
-      vector<string> SYM_TABLE({"+","-","/","*","%","&",";;","(",")",";","[","]","@","++","--","<",">","<=",">=","=","!=","&&","<<",">>","-&"});
+      vector<string> SYM_TABLE({"+","-","/","*","%","&",";;","(",")",";","[","]","@","++","--","<",">","<=",">=","=","!=","&&","<<",">>","-&","|"});
       vector<Token> VAR_TKS;
       vector<string> PROCS({"__asm"});
       unordered_map<string, int> VARS;
@@ -398,6 +476,20 @@ namespace lex{
             result.type  = STRING;
             VAR_TKS.push_back(result);
             VARS[result.value] = VAR_TKS.size()-1;
+          }
+          else if(word=="short"){
+            result.value = split_line[++i];
+            result.type  = DEFSHORT;
+            Tokens.push_back(result);
+            result.type  = SHORT;
+            VAR_TKS.push_back(result);
+            VARS[result.value] = VAR_TKS.size()-1;
+          }
+          else if(split_line.size()>=4&&word=="("&&split_line[i+2]==")"&&isType(split_line[i+1])){
+            result.value = literal_or_var(split_line[i+3])!=ERROR ? split_line[i+3] : CONSTS[split_line[i+3]];
+            result.type = KEYWORD_MAP[split_line[i+1]];
+            Tokens.push_back(result);
+            i+=3;
           }
           else if(word==""||word==" "||word=="\n"||word=="\t"){
             
@@ -536,6 +628,19 @@ namespace lex{
             block_tracker++;
             BLOCK_STACK.push_back("if");
           break;
+          case ELSE:
+            if(BLOCK_STACK[BLOCK_STACK.size()-1]!="if"&&BLOCK_STACK[BLOCK_STACK.size()-1]!="elif"){
+              cerr << "\033[1;31m"<<FILENAME<<":"<<tk.line<<":An else statement following a non-if block, instead follows a '"<<BLOCK_STACK[BLOCK_STACK.size()-1]<<"' block.\033[0m\n";
+              assert(false);
+            }
+            if(Tokens[i+1].type==IF){
+              cerr << "\033[1;31m"<<FILENAME<<":"<<tk.line<<":Else if statements not supported yet.\033[0m\n";
+              assert(false);
+            }
+            else{
+              BLOCK_STACK[BLOCK_STACK.size()-1]="else";
+            }
+          break;
           case END:
             block_tracker--;
             if(block_tracker<0){
@@ -559,7 +664,7 @@ namespace lex{
           case IN:
           case OUT:
             if(!IN_BEGIN){
-              cerr << "\033[1;31m"<<FILENAME<<":"<<tk.line<<":You can only use the keywords in or out before the begin part of procedure.\033[0m\n";
+              cerr << "\033[1;31m"<<FILENAME<<":"<<tk.line<<":You can only use the keywords in and out before the begin part of procedure.\033[0m\n";
               assert(false);
             }
           break;
@@ -578,6 +683,7 @@ namespace lex{
           case SHR:
           case SHL:
           case BIT_AND:
+          case BIT_OR:
             prev = Tokens[i-1];
             if(prev.type<UINT||prev.type>CHAR){
               cerr << "\033[1;31m"<<FILENAME<<":"<<tk.line<<":First agrument of '"<< TYPE_NAMES[tk.type] <<"' is not a Valid Type.\033[0m\n";
@@ -615,6 +721,131 @@ namespace lex{
         assert(false);
       }
       printf("Done grammer checking!\n");
+    }
+    void processOp(int &index, kt::Tree<Token> &tree){
+      tree.connect(tree[index], tree[index+1]);
+      if(opInAmount(tree[index]->type)==2){
+        tree.connect(tree[index], tree[index+2]);
+        index+=2;
+      }
+      else{
+        index++;
+      }
+      if(isOp(tree[index]->type)) processOp(index, tree);
+    }
+    vector<Token> reconstructOp(Token* var, Token* tk, int line_number, kt::Tree<Token> &tree){
+      vector<Token*> children = tree[tk];
+      vector<Token> line;
+      Token semicolon;
+      semicolon.type = SEMICOLON;
+      semicolon.line = line_number;
+      if(opInAmount(tk->type)==2){
+        if(isOp(children[1]->type)){
+          vector<Token> prev_line = reconstructOp(var, children[1], line_number, tree);
+          line.insert(line.end(), prev_line.begin(), prev_line.end());
+          if(isDef(var->type))var->type = defToType(var->type);
+          line.push_back(*var);
+          line.push_back(*tk);
+          line.push_back(*children[0]);
+          line.push_back(*var);
+          line.push_back(semicolon);
+        }
+        else{
+          line.push_back(*var);
+          line.push_back(*tk);
+          line.push_back(*children[0]);
+          line.push_back(*children[1]);
+          line.push_back(semicolon);
+        }
+      }
+      else{
+        if(isOp(children[0]->type)){
+          vector<Token> prev_line = reconstructOp(var, children[0], line_number, tree);
+          line.insert(line.end(), prev_line.begin(), prev_line.end());
+          if(isDef(var->type))var->type = defToType(var->type);
+          line.push_back(*var);
+          line.push_back(*tk);
+          line.push_back(*var);
+          line.push_back(semicolon);
+        }
+        else{
+          line.push_back(*var);
+          line.push_back(*tk);
+          line.push_back(*children[0]);
+          line.push_back(semicolon);
+        }
+      }
+      return line;
+    }
+    void printTree(kt::Tree<Token> &tree, Token* tk, int depth = 0){
+      int _offset=depth*2;
+      string offset = "";
+      for(int i=0; i<_offset; i++) offset+=" ";
+      cout << offset << TYPE_NAMES[tk->type] << " ";
+      if(tk->value!=""){
+        cout << tk->value << " ";
+      }
+      vector<Token*> children = tree[tk];
+      if(children.size()<1) { cout << "\n"; return; }
+      cout << " Children {\n";
+      for(Token* c: children){
+        printTree(tree, c, depth+1);
+      }
+      cout << offset << "}\n";
+    }
+    void postprocess(){
+      vector<Token> _Tokens;
+      typedef vector<Token*> Expr;
+      vector<Expr> Exprs;
+      for(int i = 0; i < Tokens.size(); i++){
+        Expr expr;
+        i--;
+        while(Tokens[++i].type!=SEMICOLON) expr.push_back(&Tokens[i]);
+        expr.push_back(&Tokens[i]);
+        Exprs.push_back(expr);
+      }
+      //NOTE ADD PRORITIES AND MAKE IT TO WHERE THE EXPERESSIONS ARE EVAULATED LEFT TO RIGHT
+      //AND NOT RIGHT TO LEFT
+      
+      // for(Expr &e : Exprs){
+      //   cout << "Expression: ";
+      //   for(Token* &tk : e){
+      //     cout << TYPE_NAMES[tk->type] << " ";
+      //     if(tk->value!=""){
+      //       cout << tk->value << " ";
+      //     }
+      //   }
+      //   cout << "\n";
+      // }
+      // cout << "\n";
+      for(Expr &e : Exprs){
+        kt::Tree<Token> tree;
+        for(Token* &tk : e) tree.push_back(*tk);
+        if((isType(e[0]->type)||isDef(e[0]->type))&&isOp(e[1]->type)){
+          tree.connect(tree[0], tree[1]);
+          int index = 1;
+          processOp(index, tree);
+          // cout << "Tree"<<tree[0]->line<<":\n";
+          // printTree(tree, tree[0]);
+          vector<Token> line = reconstructOp(tree[0], tree[1], tree[0]->line, tree);
+          _Tokens.insert(_Tokens.end(), line.begin(), line.end());
+        }
+        else{
+          for(Token* &tk : e) _Tokens.push_back(*tk);
+        }
+      }
+      
+      Tokens = _Tokens;
+      // for(lex::Token &tk : Tokens){
+      //   cout << lex::TYPE_NAMES[tk.type] << " ";
+      //   if(tk.value!=""){
+      //     cout << tk.value << " ";
+      //   }
+      //   if(tk.type==lex::SEMICOLON){
+      //     cout << "\n";
+      //   }
+      // }
+      // exit(1);
     }
   };
 }

@@ -16,6 +16,7 @@ namespace intr{
     if(type == lex::UINT) return "i32";
     if(type == lex::INT) return "i32";
     if(type == lex::LONG) return "i64";
+    if(type == lex::SHORT) return "i16";
     if(type == lex::PTR){
       if(options::target==options::X86_I386) return "i32";
       return "i64";
@@ -44,10 +45,20 @@ namespace intr{
       tks_to_inter();
       deadcode_elim();
       grammer_check();
+      if(options::INTER_FILE!="") output_inter(options::INTER_FILE);
       return INTER;
     }
     
     private:
+    
+    void output_inter(string &wf){
+      ofstream out_stream;
+      out_stream.open(wf.c_str());
+      for(string &s : INTER){
+        out_stream << s << " ";
+        if(s == ";") out_stream << "\n";
+      }
+    }
     
     void setup_op(lex::Token &tk1, lex::Token &tk2){
       INTER.push_back(size_of(tk1.type));
@@ -131,6 +142,7 @@ namespace intr{
           case lex::BOOL:
           case lex::CHAR:
           case lex::STRING:
+          case lex::SHORT:
           if(lex::literal_or_var(tk.value)==lex::ERROR) INTER.push_back("?"+tk.value);
           else INTER.push_back(tk.value);
           break;
@@ -175,6 +187,14 @@ namespace intr{
           case lex::DEFB:
           INTER.push_back("def");
           INTER.push_back("i8");
+          INTER.push_back("?"+tk.value);
+          if(Tokens[i+1].type>=lex::UINT&&Tokens[i+1].type<=lex::AMPERSAND) INTER.push_back("=");
+          else if(Tokens[i+1].type==lex::OSQRB) continue;
+          else INTER.push_back(";");
+          break;
+          case lex::DEFSHORT:
+          INTER.push_back("def");
+          INTER.push_back("i16");
           INTER.push_back("?"+tk.value);
           if(Tokens[i+1].type>=lex::UINT&&Tokens[i+1].type<=lex::AMPERSAND) INTER.push_back("=");
           else if(Tokens[i+1].type==lex::OSQRB) continue;
@@ -258,6 +278,12 @@ namespace intr{
           INTER.push_back("-&");
           setup_op(tk1, tk2);
           break;
+          case lex::BIT_OR:
+          tk1 = Tokens[++i];
+          tk2 = Tokens[++i];
+          INTER.push_back("|");
+          setup_op(tk1, tk2);
+          break;
           case lex::SHR:
           tk1 = Tokens[++i];
           tk2 = Tokens[++i];
@@ -279,6 +305,7 @@ namespace intr{
           tk1 = Tokens[++i];
           INTER.push_back("@");
           INTER.push_back("?"+tk1.value);
+          if(lex::isType(Tokens[i+1].type)) INTER.push_back(size_of(Tokens[i+1].type));
           break;
           case lex::INC:
           prev = INTER[INTER.size()-1];
@@ -315,7 +342,13 @@ namespace intr{
           INTER.push_back("if");
           break;
           case lex::ELSE:
-          INTER.push_back("else");
+          if(Tokens[i+1].type!=lex::IF){
+            INTER.push_back("end");
+            INTER.push_back("if");
+            INTER.push_back(";");
+            INTER.push_back("else");
+          }
+          else{ i++; INTER.push_back("else if"); }
           break;
           default:
           cerr << "\033[1;31m"<<lex::FILENAME<<":"<<tk.line<<":Unhandled token type in intermediate '"<<lex::TYPE_NAMES[tk.type]<<"'.\033[0m\n";
@@ -323,7 +356,7 @@ namespace intr{
           break;
         }
       }
-      printf("Done generate intermediate representation!\n");
+      printf("Done generating intermediate representation!\n");
     }
     
     void parse_tree(string &current, unordered_map<string, fn_node> &tree, vector<string> &list){
@@ -417,6 +450,7 @@ namespace intr{
     void grammer_check(){
       int WHILE_COUNT = 0;
       int IF_COUNT    = 0;
+      int ESC_COUNT   = 0;
       for(int i = 0; i < INTER.size()-1; i++){
         string s = INTER[i];
         if(s==";"&&INTER[i+1][0]=='?'){
@@ -512,7 +546,11 @@ namespace intr{
           //Find End
           int bc = 1;
           while(true){
-            if(INTER[++i]=="if") bc++;
+            if(i+1>=INTER.size()){
+              cerr << "\033[1;31mDid not find end of if.\033[0m\n";
+              assert(false);
+            }
+            else if(INTER[++i]=="if") bc++;
             else if(INTER[i]=="end"&&INTER[i+1]=="if"){
               if(--bc==0) break;
               i++;
@@ -526,6 +564,33 @@ namespace intr{
           insertv.push_back(";");
           INTER.insert(INTER.begin()+i,insertv.begin(), insertv.end());
           i = beginning+1;
+        }
+        else if(s=="else"){
+          INTER.erase(INTER.begin()+i,INTER.begin()+i+2);
+          vector<string> insertv;
+          insertv.push_back("jmp");
+          insertv.push_back(".escape"+to_string(++ESC_COUNT));
+          insertv.push_back(";");
+          i-=3;
+          INTER.insert(INTER.begin()+i, insertv.begin(), insertv.end());
+          int bc = 1;
+          while(true){
+            if(i+1>=INTER.size()){
+              cerr << "\033[1;31mDid not find end of else.\033[0m\n";
+              assert(false);
+            }
+            else if(INTER[++i]=="else") bc++;
+            else if(INTER[i]=="end"&&INTER[i+1]=="else"){
+              if(--bc==0) break;
+              i++;
+            }
+          }
+          INTER.erase(INTER.begin()+i,INTER.begin()+i+3);
+          insertv.clear();
+          insertv.push_back("label");
+          insertv.push_back(".escape"+to_string(ESC_COUNT));
+          insertv.push_back(";");
+          INTER.insert(INTER.begin()+i,insertv.begin(), insertv.end());
         }
       }
     }

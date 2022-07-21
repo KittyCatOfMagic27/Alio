@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <sstream>
 #include <string>
+#include "./modules/trees.h"
 #include "./modules/options.h"
 #include "./modules/lexer.h"
 #include "./modules/intermediate.h"
@@ -19,6 +20,11 @@ namespace flags{
     }else{
       options::FILE_BASENAME = FILENAME;
     }
+  }
+  
+  void INTER_FILE(string FILENAME){
+    FILENAME.erase(FILENAME.size()-1);
+    options::INTER_FILE = FILENAME;
   }
   
   void TARGETFLAG(string TARGET){
@@ -44,10 +50,13 @@ namespace flags{
   void DEBUGFLAG(string NA){
     options::DEBUGMODE = true;
   }
+  
+  void INTERMODE(string NA){
+    options::INTERMODE = true;
+  }
 }
 
-int main(int argc, char** argv){
-  
+kf::FlagProxy setup_flags(){
   //Command line flags
   string help_desc = "This is the Alio help desc!\nYou can bring up this page by using the --help flag.";
   kf::FlagProxy prox(help_desc);
@@ -56,9 +65,17 @@ int main(int argc, char** argv){
   string file_flag_desc = "Provides .alio file to compiler (Required).";
   prox.AddFlag(file_flag, flags::ALIO_FILE, file_flag_desc, 1);
   
+  string inter_flag = "-i";
+  string inter_flag_desc = "Switches to inter mode.";
+  prox.AddFlag(inter_flag, flags::INTERMODE, inter_flag_desc, 0);
+  
   string exec_flag = "-o";
   string exec_flag_desc = "Name the exec file.";
   prox.AddFlag(exec_flag, flags::EXEC_FILE_SET, exec_flag_desc, 1);
+  
+  string ointer_flag = "-oi";
+  string ointer_flag_desc = "Puts intermediate into given file.";
+  prox.AddFlag(ointer_flag, flags::INTER_FILE, ointer_flag_desc, 1);
   
   string target_flag = "-t";
   string target_flag_desc = "Provides the target to the compiler. (elf64 or elf32)";
@@ -73,7 +90,11 @@ int main(int argc, char** argv){
   prox.AddFlag(asm_flag, flags::ASMFLAG, asm_flag_desc, 0);
   
   prox.AddHelp("For additional info check README.md /home/$USR/ALIO/.\n(Powered by KFlags)");
-  
+  return prox;
+}
+
+int main(int argc, char** argv){
+  kf::FlagProxy prox = setup_flags();
   prox.Parse(argc, argv);
   
   //Hello Alio
@@ -85,8 +106,12 @@ int main(int argc, char** argv){
   stringstream ss;
   
   //Compile Alio
-  {
-    
+  if(options::INTERMODE){
+    comp::COMPILER *compiler = new comp::COMPILER(asm_file, alio_file.c_str());
+    compiler->run();
+    delete compiler;
+  }
+  else{
     lex::LEXER *lexer = new lex::LEXER(alio_file.c_str());
     vector<lex::Token> Tokens = lexer->run();
     delete lexer;
