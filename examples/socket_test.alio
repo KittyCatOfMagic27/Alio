@@ -1,0 +1,63 @@
+;;include static <stdlib>
+;;include static <socket>
+;;include static <memory>
+
+struct FILEDATA
+begin
+  ptr data
+  uint filesize
+end
+
+proc getfile
+in ptr filename
+out ptr __data
+begin
+  uint fd openf(filename)
+  uint filesize sizeof_file(fd)
+  uint prot PROT_READ | PROT_WRITE
+  uint flags MAP_PRIVATE | MAP_ANONYMOUS
+  ptr fileaddr mmap(0 filesize prot flags 0 0)
+  uint length readf(fd fileaddr filesize)
+  SYS_closefd(fd)
+  FILEDATA data
+  data.data fileaddr
+  data.filesize filesize
+  __data &data
+end
+
+proc main
+begin
+  # Get html file
+  static string filename "./main.html"
+  ptr __file getfile(filename)
+  FILEDATA file
+  file @__file
+  
+  # Host
+  uint one 1
+  ptr __one &one
+  uint sock socket(AF_INET SOCK_STREAM 0)
+  setsockopt(sock SOL_SOCKET SO_REUSEADDR __one SIZEOF_UINT)
+  
+  short port 8080
+  sockaddr_in svr_addr
+  svr_addr.sin_family AF_INET
+  svr_addr.sin_addr INADDR_ANY
+  svr_addr.port bitswap16(port)
+  
+  ptr __svr_addr &svr_addr
+  bind(sock __svr_addr SIZEOF_SOCKADDR)
+  listen(sock 5)
+  bool x true
+  while(x)
+    uint client_fd accept(sock 0 0)
+    static string msg "got connection"
+    prints(STDOUT msg)
+    printc(STDOUT 10)
+    
+    printi(STDOUT client_fd)
+    printc(STDOUT 10)
+    SYS_write(client_fd file.data file.filesize)
+    SYS_closefd(client_fd)
+  end
+end
