@@ -1,7 +1,20 @@
+;;ifndef ALIO_STDLIB
+;;def ALIO_STDLIB
+
+# Sizes
+;;define SIZEOF_CHAR 1
+;;define SIZEOF_BOOL 1
+;;define SIZEOF_UINT 4
+;;define SIZEOF_INT 4
+;;define SIZEOF_PTR 8
+;;define SIZEOF_LONG 8
 # FLAGS
 ;;define O_RDONLY 0
 ;;define O_WRONLY 1
 ;;define O_RDWR 2
+;;define O_CREAT 64
+;;define O_TRUNC 512
+;;define O_APPEND 1024
 # MODES
 ;;define S_IRWXU 1792
 # OUTSTREAMS
@@ -10,6 +23,74 @@
 ;;define STDIN 0
 # MISC
 ;;define NEGONE 4294967294
+# Syscall NRs
+;;define NRSYS_READ 0
+;;define NRSYS_WRITE 1
+;;define NRSYS_OPEN 2
+;;define NRSYS_CLOSE 3
+;;define NRSYS_STAT 4
+;;define NRSYS_FSTAT 5
+;;define NRSYS_LSTAT 6
+;;define NRSYS_POLL 7
+;;define NRSYS_LSEEK 8
+;;define NRSYS_MMAP 9
+;;define NRSYS_MPROTECT 10
+;;define NRSYS_MUNMAP 11
+;;define NRSYS_BRK 12
+;;define NRSYS_RT_SIGNACTION 13
+;;define NRSYS_RT_SIGPROCMASK 14
+;;define NRSYS_RT_SIGRETURN 15
+;;define NRSYS_IOCTL 16
+;;define NRSYS_PREAD64 17
+;;define NRSYS_PWRITE 18
+;;define NRSYS_READV 19
+;;define NRSYS_WRITEV 20
+;;define NRSYS_ACCESS 21
+;;define NRSYS_PIPE 22
+;;define NRSYS_SELECT 23
+;;define NRSYS_SCHED_YIELD 24
+;;define NRSYS_MREMAP 25
+;;define NRSYS_MSYNC 26
+;;define NRSYS_MINCORE 27
+;;define NRSYS_MADVISE 28
+;;define NRSYS_SHMGET 29
+;;define NRSYS_SHMAT 30
+;;define NRSYS_SHMCTL 31
+;;define NRSYS_DUP 32
+;;define NRSYS_DUP2 33
+;;define NRSYS_PAUSE 34
+;;define NRSYS_NANOSLEEP 35
+;;define NRSYS_GETITIMER 36
+;;define NRSYS_ALARM 37
+;;define NRSYS_SETITIMER 38
+;;define NRSYS_GETPID 39
+;;define NRSYS_SENDFILE 40
+;;define NRSYS_SOCKET 41
+;;define NRSYS_CONNECT 42
+;;define NRSYS_ACCEPT 43
+;;define NRSYS_SENDTO 44
+;;define NRSYS_RECVFROM 45
+;;define NRSYS_SENDMSG 46
+;;define NRSYS_RECVMSG 47
+;;define NRSYS_SHUTDOWN 48
+;;define NRSYS_BIND 49
+;;define NRSYS_LISTEN 50
+;;define NRSYS_GETSOCKNAME 51
+;;define NRSYS_GETPEERNAME 52
+;;define NRSYS_SOCKETPAIR 53
+;;define NRSYS_SETSOCKOPT 54
+;;define NRSYS_GETSOCKOPT 55
+;;define NRSYS_CLONE 56
+;;define NRSYS_FORK 57
+;;define NRSYS_VFORK 58
+;;define NRSYS_EXECVE 59
+;;define NRSYS_EXIT 60
+;;define NRSYS_WAIT4 61
+;;define NRSYS_KILL 62
+;;define NRSYS_UNAME 63
+;;define NRSYS_SEMGET 64
+;;define NRSYS_SEMOP 65
+# All im doing for now...
 
 #SYSCALL WRAPPERS
 proc SYS_write
@@ -17,7 +98,7 @@ in uint fd
 in ptr buffer
 in uint size
 begin
-  syscall(1 fd buffer size)
+  syscall(NRSYS_WRITE fd buffer size)
 end
 
 proc SYS_read
@@ -26,7 +107,7 @@ in ptr buffer
 in uint size
 out uint read_amount
 begin
-  read_amount syscall(0 fd buffer size)
+  read_amount syscall(NRSYS_READ fd buffer size)
 end
 
 proc SYS_openfd
@@ -35,26 +116,34 @@ in uint flags
 in uint mode
 out uint fd
 begin
-  fd syscall(2 filename flags mode)
+  fd syscall(NRSYS_OPEN filename flags mode)
 end
 
 proc SYS_closefd
 in uint fd
 begin
-  syscall(3 fd)
+  syscall(NRSYS_CLOSE fd)
 end
 
 proc SYS_fstat
 in uint fd
 in ptr fstat_struct # buffer[144]
 begin
-  syscall(5 fd fstat_struct)
+  syscall(NRSYS_FSTAT fd fstat_struct)
 end
 
 proc SYS_exit
 in uint error_code
 begin
-  syscall(60 error_code)
+  syscall(NRSYS_EXIT error_code)
+end
+
+proc SYS_execve
+in ptr filename
+in ptr argv
+in ptr envp
+begin
+  syscall(NRSYS_EXECVE filename argv envp)
 end
 
 proc sizeof_file
@@ -63,7 +152,7 @@ out uint size
 begin
   string fstat_struct[144]
   ptr y &fstat_struct
-  syscall(5 fd y)
+  syscall(NRSYS_FSTAT fd y)
   y y+48
   size @y
 end
@@ -115,7 +204,7 @@ in uint fd
 in char x
 begin
   ptr y &x
-  syscall(1 fd y 1)
+  syscall(NRSYS_WRITE fd y 1)
 end
 
 proc strlen
@@ -129,75 +218,6 @@ begin
     c @str
   end
   len str-beginning
-end
-
-proc prints
-in uint fd
-in ptr str
-begin
-  uint len strlen(str)
-  syscall(1 fd str len)
-end
-
-proc __print_error
-in int error
-begin
-  error NEGONE-error
-  error error+2
-  string error_msg[256]
-  ptr eptr &error_msg
-  long null 0
-  uint i 0
-  while(i<256)
-    @eptr null
-    eptr eptr + 8
-    i i + 8
-  end
-  eptr &error_msg
-  if(error=1)
-    error_msg "Operation not permitted."
-  end
-  if(error=2)
-    error_msg "No such file or directory."
-  end
-  if(error=3)
-    error_msg "No such process."
-  end
-  if(error=4)
-    error_msg "Interrupted system call."
-  end
-  if(error=5)
-    error_msg "I/O error."
-  end
-  if(error=6)
-    error_msg "No such device or address."
-  end
-  if(error=7)
-    error_msg "Argument list too long."
-  end
-  if(error=8)
-    error_msg "Exec format error."
-  end
-  if(error=9)
-    error_msg "Bad file number."
-  end
-  if(error=10)
-    error_msg "No child processes."
-  end
-  if(error=11)
-    error_msg "Try again."
-  end
-  if(error=12)
-    error_msg "Out of memory."
-  end
-  if(error=13)
-    error_msg "Permission denied."
-  end
-  if(error=14)
-    error_msg "Bad address."
-  end
-  eptr &error_msg
-  prints(STDERR eptr)
 end
 
 proc strcmp
@@ -222,6 +242,335 @@ begin
       str2++
     end
   end
+end
+
+proc strcpy
+in ptr source
+in ptr dest
+begin
+  char c @source
+  while(c)
+    @dest c
+    source++
+    dest++
+    c @source
+  end
+  @dest 0
+end
+
+proc strcpylen
+in ptr str1
+in ptr str2
+in uint len
+begin
+  char c @str1
+  uint i 0
+  while(i<len)
+    @str2 c
+    str1++
+    str2++
+    c @str1
+    i++
+  end
+  @str2 0
+end
+
+proc strend
+in ptr str
+out ptr s_end
+begin
+  char c @str
+  while(c)
+    str++
+    c @str
+  end
+  s_end str
+end
+
+proc prints
+in uint fd
+in ptr str
+begin
+  uint len strlen(str)
+  syscall(NRSYS_WRITE fd str len)
+end
+
+proc __print_error
+in int error
+begin
+  error NEGONE-error
+  error error+2
+  string error_msg[256]
+  ptr eptr &error_msg
+  long null 0
+  uint i 0
+  while(i<256)
+    @eptr null
+    eptr eptr + 8
+    i i + 8
+  end
+  eptr &error_msg
+  if(error=1)
+    error_msg "Operation not permitted."
+  else if(error=2)
+    error_msg "No such file or directory."
+  else if(error=3)
+    error_msg "No such process."
+  else if(error=4)
+    error_msg "Interrupted system call."
+  else if(error=5)
+    error_msg "I/O error."
+  else if(error=6)
+    error_msg "No such device or address."
+  else if(error=7)
+    error_msg "Argument list too long."
+  else if(error=8)
+    error_msg "Exec format error."
+  else if(error=9)
+    error_msg "Bad file number."
+  else if(error=10)
+    error_msg "No child processes."
+  else if(error=11)
+    error_msg "Try again."
+  else if(error=12)
+    error_msg "Out of memory."
+  else if(error=13)
+    error_msg "Permission denied."
+  else if(error=14)
+    error_msg "Bad address."
+  else if(error=15)
+    error_msg "Block device required."
+  else if(error=16)
+    error_msg "Device or resource busy."
+  else if(error=17)
+    error_msg "File exists."
+  else if(error=18)
+    error_msg "Cross-device link."
+  else if(error=19)
+    error_msg "No such device."
+  else if(error=20)
+    error_msg "Not a directory."
+  else if(error=21)
+    error_msg "Is a directory."
+  else if(error=22)
+    error_msg "Invalid argument."
+  else if(error=23)
+    error_msg "File table overflow."
+  else if(error=24)
+    error_msg "Too many open files."
+  else if(error=25)
+    error_msg "Not a typewriter."
+  else if(error=26)
+    error_msg "Text file busy."
+  else if(error=27)
+    error_msg "File too large."
+  else if(error=28)
+    error_msg "No space left on device."
+  else if(error=29)
+    error_msg "Illegal seek."
+  else if(error=30)
+    error_msg "Read-only file system."
+  else if(error=31)
+    error_msg "Too many links."
+  else if(error=32)
+    error_msg "Broken pipe."
+  else if(error=33)
+    error_msg "Math argument out of domain of func."
+  else if(error=34)
+    error_msg "Math result not representable."
+  else if(error=35)
+    error_msg "Resource deadlock would occur."
+  else if(error=36)
+    error_msg "File name too long."
+  else if(error=37)
+    error_msg "No record locks available."
+  else if(error=38)
+    error_msg "Function not implemented."
+  else if(error=39)
+    error_msg "Directory not empty."
+  else if(error=40)
+    error_msg "Too many symbolic links encountered."
+  else if(error=42)
+    error_msg "No message of desired type."
+  else if(error=43)
+    error_msg "Identifier removed."
+  else if(error=44)
+    error_msg "Channel number out of range."
+  else if(error=45)
+    error_msg "Level 2 not synchronized."
+  else if(error=46)
+    error_msg "Level 3 halted."
+  else if(error=47)
+    error_msg "Level 3 reset."
+  else if(error=48)
+    error_msg "Link number out of range."
+  else if(error=49)
+    error_msg "Protocol driver not attached."
+  else if(error=50)
+    error_msg "No CSI structure available."
+  else if(error=51)
+    error_msg "Level 2 halted."
+  else if(error=52)
+    error_msg "Invalid exchange."
+  else if(error=53)
+    error_msg "Invalid request descriptor."
+  else if(error=54)
+    error_msg "Exchange full."
+  else if(error=55)
+    error_msg "No anode."
+  else if(error=56)
+    error_msg "Invalid request code."
+  else if(error=57)
+    error_msg "Invalid slot."
+  else if(error=59)
+    error_msg "Bad font file format."
+  else if(error=60)
+    error_msg "Device not a stream."
+  else if(error=61)
+    error_msg "No data available."
+  else if(error=62)
+    error_msg "Timer expired."
+  else if(error=63)
+    error_msg "Out of streams resources."
+  else if(error=64)
+    error_msg "Machine is not on the network."
+  else if(error=65)
+    error_msg "Package not installed."
+  else if(error=66)
+    error_msg "Object is remote."
+  else if(error=67)
+    error_msg "Link has been severed."
+  else if(error=68)
+    error_msg "Advertise error."
+  else if(error=69)
+    error_msg "Srmount error."
+  else if(error=70)
+    error_msg "Communication error on send."
+  else if(error=71)
+    error_msg "Protocol error."
+  else if(error=72)
+    error_msg "Multihop attempted."
+  else if(error=73)
+    error_msg "RFS specific error."
+  else if(error=74)
+    error_msg "Not a data message."
+  else if(error=75)
+    error_msg "Value too large for defined data type."
+  else if(error=76)
+    error_msg "Name not unique on network."
+  else if(error=77)
+    error_msg "File descriptor in bad state."
+  else if(error=78)
+    error_msg "Remote address changed."
+  else if(error=79)
+    error_msg "Can not access a needed shared library."
+  else if(error=80)
+    error_msg "Accessing a corrupted shared library."
+  else if(error=81)
+    error_msg "lib section in a out corrupted."
+  else if(error=82)
+    error_msg "Attempting to link in too many shared libraries."
+  else if(error=83)
+    error_msg "Cannot exec a shared library directly."
+  else if(error=84)
+    error_msg "Illegal byte sequence."
+  else if(error=85)
+    error_msg "Interrupted system call should be restarted."
+  else if(error=86)
+    error_msg "Streams pipe error."
+  else if(error=87)
+    error_msg "Too many users."
+  else if(error=88)
+    error_msg "Socket operation on non-socket."
+  else if(error=89)
+    error_msg "Destination address required."
+  else if(error=90)
+    error_msg "Message too long."
+  else if(error=91)
+    error_msg "Protocol wrong type for socket."
+  else if(error=92)
+    error_msg "Protocol not available."
+  else if(error=93)
+    error_msg "Protocol not supported."
+  else if(error=94)
+    error_msg "Socket type not supported."
+  else if(error=95)
+    error_msg "Operation not supported on transport endpoint."
+  else if(error=96)
+    error_msg "Protocol family not supported."
+  else if(error=97)
+    error_msg "Address family not supported by protocol."
+  else if(error=98)
+    error_msg "Address already in use."
+  else if(error=99)
+    error_msg "Cannot assign requested address."
+  else if(error=100)
+    error_msg "Network is down."
+  else if(error=101)
+    error_msg "Network is unreachable."
+  else if(error=102)
+    error_msg "Network dropped connection because of reset."
+  else if(error=103)
+    error_msg "Software caused connection abort."
+  else if(error=104)
+    error_msg "Connection reset by peer."
+  else if(error=105)
+    error_msg "No buffer space available."
+  else if(error=106)
+    error_msg "Transport endpoint is already connected."
+  else if(error=107)
+    error_msg "Transport endpoint is not connected."
+  else if(error=108)
+    error_msg "Cannot send after transport endpoint shutdown."
+  else if(error=109)
+    error_msg "Too many references: cannot splice."
+  else if(error=110)
+    error_msg "Connection timed out."
+  else if(error=111)
+    error_msg "Connection refused."
+  else if(error=112)
+    error_msg "Host is down."
+  else if(error=113)
+    error_msg "No route to host."
+  else if(error=114)
+    error_msg "Operation already in progress."
+  else if(error=115)
+    error_msg "Operation now in progress."
+  else if(error=116)
+    error_msg "Stale NFS file handle."
+  else if(error=117)
+    error_msg "Structure needs cleaning."
+  else if(error=118)
+    error_msg "Not a XENIX named type file."
+  else if(error=119)
+    error_msg "No XENIX semaphores available."
+  else if(error=120)
+    error_msg "Is a named type file."
+  else if(error=121)
+    error_msg "Remote I/O error."
+  else if(error=122)
+    error_msg "Quota exceeded."
+  else if(error=123)
+    error_msg "No medium found."
+  else if(error=124)
+    error_msg "Wrong medium type."
+  else if(error=125)
+    error_msg "Operation Canceled."
+  else if(error=126)
+    error_msg "Required key not available."
+  else if(error=127)
+    error_msg "Key has expired."
+  else if(error=128)
+    error_msg "Key has been revoked."
+  else if(error=129)
+    error_msg "Key was rejected by service."
+  else if(error=130)
+    error_msg "Owner died."
+  else if(error=131)
+    error_msg "State not recoverable."
+  end
+  eptr &error_msg
+  prints(STDERR eptr)
 end
 
 proc read_stdin
@@ -281,6 +630,50 @@ begin
     mp &msg
     SYS_write(STDERR mp 7)
     __print_error(fd)
+    printc(STDERR newline)
+    SYS_exit(1)
+  end
+end
+
+proc creatf
+in ptr filename
+out uint fd
+begin
+  uint flags O_CREAT | O_RDWR
+  flags flags | O_TRUNC
+  flags flags | O_APPEND
+  fd SYS_openfd(filename flags S_IRWXU)
+  if(fd<0)
+    char null 0
+    char newline 10
+    string error "Unable to open and/or create file."
+    ptr mp &error
+    prints(STDERR mp)
+    string msg "Error: "
+    mp &msg
+    SYS_write(STDERR mp 7)
+    __print_error(fd)
+    printc(STDERR newline)
+    SYS_exit(1)
+  end
+end
+
+proc execve
+in ptr filename
+in ptr argv
+in ptr envp
+begin
+  uint err SYS_execve(filename argv envp)
+  if(err<0)
+    char null 0
+    char newline 10
+    string error "Unable able to run exec."
+    ptr mp &error
+    prints(STDERR mp)
+    string msg "Error: "
+    mp &msg
+    SYS_write(STDERR mp 7)
+    __print_error(err)
     printc(STDERR newline)
     SYS_exit(1)
   end
@@ -364,3 +757,5 @@ begin
   y &prefix
   SYS_write(fd y 18)
 end
+
+;;fi

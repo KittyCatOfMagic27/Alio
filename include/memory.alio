@@ -1,0 +1,66 @@
+# Depends on stdlib
+# Mmap Prots (Bitwise Or them together)
+;;define PROT_EXEC 4
+;;define PROT_READ 1
+;;define PROT_WRITE 2
+;;define PROT_NONE 0
+
+# Mmap flags, may only use one and the ONLY
+# reliable one across OS's is MMAP_FIXED
+;;define MAP_SHARED 1
+;;define MAP_SHARED_VALIDATE 3
+;;define MAP_PRIVATE 2
+;;define MAP_32BIT 64
+;;define MAP_ANON 32
+;;define MAP_ANONYMOUS 32
+;;define MAP_DENYWRITE 2048
+;;define MAP_EXECUTABLE 4096
+;;define MAP_FILE 0
+;;define MAP_FIXED 16
+;;define MAP_FIXED_NOREPLACE 1048576
+;;define MAP_GROWSDOWN 256
+;;define MAP_HUGETLB 262144
+;;define MAP_LOCKED 8192
+;;define MAP_NORESERVE 16384
+;;define MAP_POPULATE 32768
+;;define MAP_STACK 131072
+;;define MAP_SYNC 524288
+
+proc mmap
+in ptr addr
+in uint length
+in uint prot
+in uint flags
+in uint fd
+in uint offset
+out ptr ret_addr
+begin
+  ret_addr syscall(NRSYS_MMAP addr length prot flags fd offset)
+  if(ret_addr<0)
+    char null 0
+    string error "Couldn't map memory."
+    ptr __error &error
+    prints(STDERR __error)
+    printc(STDERR 10)
+    __print_error(ret_addr)
+    printc(STDERR 10)
+    SYS_exit(1)
+  end
+end
+
+proc munmap
+in ptr addr
+in uint length
+begin
+  uint err syscall(NRSYS_MUNMAP addr length)
+  if(err<0)
+    char null 0
+    string error "Couldn't unmap memory."
+    ptr __error &error
+    prints(STDERR __error)
+    printc(STDERR 10)
+    __print_error(err)
+    printc(STDERR 10)
+    SYS_exit(1)
+  end
+end
