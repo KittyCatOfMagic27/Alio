@@ -20,6 +20,7 @@ namespace options{
   bool KEEP_ASM = false;
   bool DEBUGMODE = false;
   bool INTERMODE = false;
+  string ENTRYPOINT = "main";
 }
 
 #endif

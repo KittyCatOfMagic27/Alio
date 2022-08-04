@@ -12,6 +12,10 @@
 using namespace std;
 
 namespace intr{
+  inline bool DEF_ASSIGN(lex::Token tk){
+    return (tk.type>=lex::UINT&&tk.type<=lex::AMPERSAND) ||tk.type==lex::SYSCALL;
+  }
+  
   string size_of(lex::ENUM_TYPE type){
     if(type == lex::UINT) return "i32";
     if(type == lex::INT) return "i32";
@@ -84,6 +88,8 @@ namespace intr{
           }
         }
       }
+      int ESC_COUNTER = 0;
+      vector<string> BLOCK_STACK;
       for(int i = 0; i<Tokens.size(); i++){
         lex::Token tk = Tokens[i];
         switch(tk.type){
@@ -96,6 +102,27 @@ namespace intr{
           INTER.push_back("end");
           INTER.push_back(tk.value);
           INTER.push_back(";");
+          if(BLOCK_STACK.size()>0){
+            if(BLOCK_STACK[BLOCK_STACK.size()-1]=="else if"&&tk.value=="else if"){
+              INTER.pop_back();
+              INTER.push_back(BLOCK_STACK[BLOCK_STACK.size()-2]);
+              INTER.push_back("1");
+              INTER.push_back(";");
+              BLOCK_STACK.pop_back();
+              BLOCK_STACK.pop_back();
+            }
+            else if(BLOCK_STACK[BLOCK_STACK.size()-1]=="if"&&tk.value=="if"){
+              BLOCK_STACK.pop_back();
+              BLOCK_STACK.pop_back();
+            }
+            else if(BLOCK_STACK[BLOCK_STACK.size()-1]=="else"&&tk.value=="else"){
+              INTER.pop_back();
+              INTER.push_back(BLOCK_STACK[BLOCK_STACK.size()-2]);
+              INTER.push_back(";");
+              BLOCK_STACK.pop_back();
+              BLOCK_STACK.pop_back();
+            }
+          }
           break;
           case lex::BEGIN:
           INTER.push_back("begin");
@@ -122,6 +149,15 @@ namespace intr{
           INTER.push_back(";");
           i++;
           break;
+          case lex::SUBSET:
+          INTER.push_back("subset");
+          INTER.push_back("i"+to_string(stoi(Tokens[i+2].value)*8));
+          INTER.push_back(Tokens[i+1].value);
+          INTER.push_back("?"+Tokens[i+3].value);
+          INTER.push_back("?"+Tokens[i+4].value);
+          INTER.push_back(";");
+          i+=4;
+          break;
           case lex::SYSCALL:
           INTER.push_back("syscall");
           break;
@@ -143,6 +179,7 @@ namespace intr{
           case lex::CHAR:
           case lex::STRING:
           case lex::SHORT:
+          case lex::STRUCT:
           if(lex::literal_or_var(tk.value)==lex::ERROR) INTER.push_back("?"+tk.value);
           else INTER.push_back(tk.value);
           break;
@@ -151,7 +188,7 @@ namespace intr{
           if(Tokens[i+1].type!=lex::OSQRB){
             INTER.push_back("i"+to_string((Tokens[i+1].value.size()-2)*8));
             INTER.push_back("?"+tk.value);
-            if(Tokens[i+1].type>=lex::UINT&&Tokens[i+1].type<=lex::AMPERSAND) INTER.push_back("=");
+            if(DEF_ASSIGN(Tokens[i+1])) INTER.push_back("=");
             else if(Tokens[i+1].type==lex::OSQRB) continue;
             else INTER.push_back(";");
           }
@@ -160,16 +197,22 @@ namespace intr{
             INTER.push_back("i"+to_string(stoi(Tokens[++i].value)*8));
             i++;
             INTER.push_back("?"+tk.value);
-            if(Tokens[i+1].type>=lex::UINT&&Tokens[i+1].type<=lex::AMPERSAND) INTER.push_back("=");
+            if(DEF_ASSIGN(Tokens[i+1])) INTER.push_back("=");
             else INTER.push_back(";");
           }
+          break;
+          case lex::DEFSTRUCT:
+          INTER.push_back("def");
+          INTER.push_back("i"+to_string(lex::STRUCTS[tk.value].size*8));
+          INTER.push_back("?"+Tokens[++i].value);
+          INTER.push_back(";");
           break;
           case lex::DEFU:
           case lex::DEFI:
           INTER.push_back("def");
           INTER.push_back("i32");
           INTER.push_back("?"+tk.value);
-          if(Tokens[i+1].type>=lex::UINT&&Tokens[i+1].type<=lex::AMPERSAND) INTER.push_back("=");
+          if(DEF_ASSIGN(Tokens[i+1])) INTER.push_back("=");
           else if(Tokens[i+1].type==lex::OSQRB) continue;
           else INTER.push_back(";");
           break;
@@ -179,7 +222,7 @@ namespace intr{
           if(options::target==options::X86_I386) INTER.push_back("i32");
           else INTER.push_back("i64");
           INTER.push_back("?"+tk.value);
-          if(Tokens[i+1].type>=lex::UINT&&Tokens[i+1].type<=lex::AMPERSAND) INTER.push_back("=");
+          if(DEF_ASSIGN(Tokens[i+1])) INTER.push_back("=");
           else if(Tokens[i+1].type==lex::OSQRB) continue;
           else INTER.push_back(";");
           break;
@@ -188,7 +231,7 @@ namespace intr{
           INTER.push_back("def");
           INTER.push_back("i8");
           INTER.push_back("?"+tk.value);
-          if(Tokens[i+1].type>=lex::UINT&&Tokens[i+1].type<=lex::AMPERSAND) INTER.push_back("=");
+          if(DEF_ASSIGN(Tokens[i+1])) INTER.push_back("=");
           else if(Tokens[i+1].type==lex::OSQRB) continue;
           else INTER.push_back(";");
           break;
@@ -196,7 +239,7 @@ namespace intr{
           INTER.push_back("def");
           INTER.push_back("i16");
           INTER.push_back("?"+tk.value);
-          if(Tokens[i+1].type>=lex::UINT&&Tokens[i+1].type<=lex::AMPERSAND) INTER.push_back("=");
+          if(DEF_ASSIGN(Tokens[i+1])) INTER.push_back("=");
           else if(Tokens[i+1].type==lex::OSQRB) continue;
           else INTER.push_back(";");
           break;
@@ -317,6 +360,14 @@ namespace intr{
           INTER[INTER.size()-1] = "--";
           INTER.push_back(prev);
           break;
+          case lex::ARGLEA:
+          INTER.push_back("&");
+          INTER.push_back("?"+tk.value);
+          break;
+          case lex::OFNAME:
+          INTER.push_back("::");
+          INTER.push_back(tk.value);
+          break;
           case lex::SEMICOLON:
           if(INTER[INTER.size()-1]!=";") INTER.push_back(";");
           break;
@@ -340,18 +391,34 @@ namespace intr{
           break;
           case lex::IF:
           INTER.push_back("if");
+          BLOCK_STACK.push_back(to_string(++ESC_COUNTER));
+          BLOCK_STACK.push_back("if");
           break;
           case lex::ELSE:
           if(Tokens[i+1].type!=lex::IF){
             INTER.push_back("end");
-            INTER.push_back("if");
+            INTER.push_back(BLOCK_STACK[BLOCK_STACK.size()-1]);
+            if(BLOCK_STACK[BLOCK_STACK.size()-1]!="if") INTER.push_back(BLOCK_STACK[BLOCK_STACK.size()-2]);
+            if(BLOCK_STACK[BLOCK_STACK.size()-1]=="else if") INTER.push_back("0");
+            BLOCK_STACK[BLOCK_STACK.size()-1]="else";
             INTER.push_back(";");
             INTER.push_back("else");
           }
-          else{ i++; INTER.push_back("else if"); }
+          else{
+            INTER.push_back("end");
+            INTER.push_back(BLOCK_STACK[BLOCK_STACK.size()-1]);
+            if(BLOCK_STACK[BLOCK_STACK.size()-1]!="if") INTER.push_back(BLOCK_STACK[BLOCK_STACK.size()-2]);
+            if(BLOCK_STACK[BLOCK_STACK.size()-1]=="else if") INTER.push_back("0");
+            BLOCK_STACK[BLOCK_STACK.size()-1]="else if";
+            INTER.push_back(";");
+            INTER.push_back("else if");
+            i++;
+          }
           break;
           default:
-          cerr << "\033[1;31m"<<lex::FILENAME<<":"<<tk.line<<":Unhandled token type in intermediate '"<<lex::TYPE_NAMES[tk.type]<<"'.\033[0m\n";
+          startErrorThrow(tk);
+          cerr << "Unhandled token type in intermediate '"<<lex::TYPE_NAMES[tk.type]<<"'.";
+          endErrorThrow();
           assert(false);
           break;
         }
@@ -369,11 +436,13 @@ namespace intr{
         return;
       }
       for(fn_node* &n : node.children){
-        if(find(list.begin(), list.end(), n->label)==list.end()) list.push_back(n->label);
         if(options::DEBUGMODE) cout << "    CHILD: "<<n->label<<"\n";
-        if(n->children.size()>0&&n->children[0]!=nullptr){
-          parse_tree(n->label, tree, list);
-          if(options::DEBUGMODE) cout << "\n";
+        if(find(list.begin(), list.end(), n->label)==list.end()){
+          list.push_back(n->label);
+          if(n->children.size()>0&&n->children[0]!=nullptr){
+            parse_tree(n->label, tree, list);
+            if(options::DEBUGMODE) cout << "\n";
+          }
         }
       }
     }
@@ -418,7 +487,7 @@ namespace intr{
         }
       }
       vector<string> list;
-      string main = "main";
+      string main = options::ENTRYPOINT;
       list.push_back(main);
       parse_tree(main, tree, list);
       //First clean up
@@ -451,13 +520,17 @@ namespace intr{
       int WHILE_COUNT = 0;
       int IF_COUNT    = 0;
       int ESC_COUNT   = 0;
+      int ELIF_COUNT  = 0;
       for(int i = 0; i < INTER.size()-1; i++){
         string s = INTER[i];
         if(s==";"&&INTER[i+1][0]=='?'){
           INTER.insert(INTER.begin()+i+2, "=");
           i++;
         }
-        else if(s=="while"){
+      }
+      for(int i = 0; i < INTER.size()-1; i++){
+        string s = INTER[i];
+        if(s=="while"){
           //Erase and get info
           int beginning = i;
           if(INTER[++i]!="("){
@@ -566,14 +639,17 @@ namespace intr{
           i = beginning+1;
         }
         else if(s=="else"){
+          int beginning = i;
           INTER.erase(INTER.begin()+i,INTER.begin()+i+2);
           vector<string> insertv;
           insertv.push_back("jmp");
-          insertv.push_back(".escape"+to_string(++ESC_COUNT));
+          insertv.push_back(".escape");
           insertv.push_back(";");
           i-=3;
+          int escape_index = i+1;
           INTER.insert(INTER.begin()+i, insertv.begin(), insertv.end());
           int bc = 1;
+          string esc;
           while(true){
             if(i+1>=INTER.size()){
               cerr << "\033[1;31mDid not find end of else.\033[0m\n";
@@ -581,16 +657,96 @@ namespace intr{
             }
             else if(INTER[++i]=="else") bc++;
             else if(INTER[i]=="end"&&INTER[i+1]=="else"){
-              if(--bc==0) break;
+              if(--bc==0){
+                esc = INTER[i+2];
+                break;
+              }
               i++;
             }
           }
-          INTER.erase(INTER.begin()+i,INTER.begin()+i+3);
+          INTER[escape_index]+=esc;
+          INTER.erase(INTER.begin()+i,INTER.begin()+i+4);
           insertv.clear();
           insertv.push_back("label");
-          insertv.push_back(".escape"+to_string(ESC_COUNT));
+          insertv.push_back(".escape"+esc);
           insertv.push_back(";");
           INTER.insert(INTER.begin()+i,insertv.begin(), insertv.end());
+          i = beginning+1;
+        }
+        else if(s=="else if"){
+          //Save start
+          int beginning = i;
+          //Place escape
+          vector<string> insertv;
+          insertv.push_back("jmp");
+          insertv.push_back(".escape");
+          insertv.push_back(";");
+          i-=3;
+          int escape_index = i+1;
+          INTER.insert(INTER.begin()+i, insertv.begin(), insertv.end());
+          insertv.clear();
+          beginning+=3;
+          i = beginning;
+          //Erase and get info
+          if(INTER[++i]!="("){
+            cerr << "\033[1;31mNo open paren with else if dec.\033[0m\n";
+            assert(false);
+          }
+          vector<string> expression;
+          while(INTER[++i]!=")") expression.push_back(INTER[i]);
+          i++;
+          INTER.erase(INTER.begin()+beginning,INTER.begin()+i+1);
+          i = beginning;
+          //Set up the beginning of the else if
+          if(expression.size()==1){
+            insertv.push_back("jmpc");
+            insertv.push_back(".elif"+to_string(++ELIF_COUNT));
+            insertv.push_back("!");
+            insertv.push_back(expression[0]);
+            insertv.push_back(";");
+          }
+          else{
+            insertv.push_back("jmpc");
+            insertv.push_back(".elif"+to_string(++ELIF_COUNT));
+            insertv.push_back("!");
+            for(string &s : expression){
+              insertv.push_back(s);
+            }
+            insertv.push_back(";");
+          }
+          INTER.insert(INTER.begin()+i,insertv.begin(), insertv.end());
+          //else part
+          int bc = 1;
+          string esc;
+          bool last;
+          while(true){
+            if(i+1>=INTER.size()){
+              cerr << "\033[1;31mDid not find end of else if.\033[0m\n";
+              assert(false);
+            }
+            else if(INTER[++i]=="else if") bc++;
+            else if(INTER[i]=="end"&&INTER[i+1]=="else if"){
+              if(--bc==0){
+                esc = INTER[i+2];
+                last = INTER[i+3]=="1";
+                break;
+              }
+              i++;
+            }
+          }
+          INTER[escape_index]+=esc;
+          INTER.erase(INTER.begin()+i,INTER.begin()+i+5);
+          insertv.clear();
+          if(last){
+            insertv.push_back("label");
+            insertv.push_back(".escape"+esc);
+            insertv.push_back(";");
+          }
+          insertv.push_back("label");
+          insertv.push_back(".elif"+to_string(ELIF_COUNT));
+          insertv.push_back(";");
+          INTER.insert(INTER.begin()+i,insertv.begin(), insertv.end());
+          i = beginning;
         }
       }
     }

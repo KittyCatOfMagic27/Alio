@@ -95,7 +95,7 @@ namespace comp{
           ss << "qword ["<<baseptr<<"-" << ptr << "]";
           break;
           default:
-          cerr << "\033[1;31mUknown size of '"<<size<<"'.\033[0m\n";
+          cerr << "\033[1;31mUknown size of '"<<size<<"' for var '"<<var.label<<"'.\033[0m\n";
           assert(false);
           break;
         }
@@ -127,6 +127,19 @@ namespace comp{
         return "0";
       }
       return value;
+    }
+  }
+  bool isRegularSize(int size){
+    switch(size){
+      case 1:
+      case 2:
+      case 4:
+      case 8:
+      return true;
+      break;
+      default:
+      return false;
+      break;
     }
   }
   
@@ -295,7 +308,7 @@ namespace comp{
     void init_nasm(){
       out_stream <<
       "SECTION .text		; code section\n"
-      "global main		  ; make label available to linker\n";
+      "global "<<options::ENTRYPOINT<<"		  ; make label available to linker\n";
     }
     
     void op_init(int &size1, int &size2, string &reg1, string &reg2, int &i, Procedure &proc){
@@ -346,7 +359,7 @@ namespace comp{
           i++;
         }
         else if(cur == "end"){
-          if(INTER[++i]=="main"){
+          if(INTER[++i]==options::ENTRYPOINT){
             out_stream <<
             ".exit:\n"
             "  add rsp, " << PROCS[CP].offset << "\n"
@@ -394,6 +407,17 @@ namespace comp{
             }
             i++;
           }
+        }
+        else if(cur == "subset"){
+          Variable new_var;
+          int size            = stoi(INTER[++i].erase(0,1))/8;
+          int offset          = stoi(INTER[++i]);
+          string sym          = INTER[++i];
+          new_var.byte_addr   = PROCS[CP].VARS[INTER[++i]].byte_addr-offset;
+          new_var.size        = size;
+          new_var.label       = sym;
+          PROCS[CP].VARS[sym] = new_var;
+          i++;
         }
         else if(cur == "in"){
           i++;
@@ -458,12 +482,18 @@ namespace comp{
           else{
             int j = 0;
             while(INTER[++i]!=")"){
-              lex::ENUM_TYPE type = lex::literal_or_var(INTER[i]);
-              int size            = lex::ERROR == type ?
-                                    PROCS[CP].VARS[INTER[i]].size :
-                                    stoi(intr::size_of(type).erase(0,1))/8;
-              if(size<8&&type==lex::ERROR) out_stream << "  movsx ";
-              else out_stream << "  mov ";
+              if(INTER[i]=="&"){
+                i++;
+                out_stream << "  lea ";
+              }
+              else{
+                lex::ENUM_TYPE type = lex::literal_or_var(INTER[i]);
+                int size            = lex::ERROR == type ?
+                                      PROCS[CP].VARS[INTER[i]].size :
+                                      stoi(intr::size_of(type).erase(0,1))/8;
+                if(size<8&&type==lex::ERROR) out_stream << "  movsx ";
+                else out_stream << "  mov ";
+              }
               out_stream << syscall_args[j] << ", " << asm_get_value(INTER[i], PROCS[CP]) << "\n";
               j++;
             }
@@ -486,7 +516,7 @@ namespace comp{
           if(PROCS[CP].VARS.find(sym)==PROCS[CP].VARS.end()){
             new_var.byte_addr   = 0;
             new_var.size        = size;
-            new_var.label       = sym;
+            new_var.label       = PROCS[CP].label+"@"+sym;
             new_var.type        = VTBSS;
             PROCS[CP].VARS[sym] = new_var;
           }
@@ -497,7 +527,39 @@ namespace comp{
             string value        = INTER[++i];
             lex::ENUM_TYPE type = lex::literal_or_var(value);
             switch(type){
-              case lex::STRING: DATA_SECTION  += "  "+var.label+": db "+value+", 0\n";                        break;
+              case lex::STRING: {
+                DATA_SECTION  += "  "+var.label+": db ";
+                const char* str = value.c_str();
+                while(*str){
+                  switch(*str){
+                    case '\\':
+                      str++;
+                      switch(*str){
+                        case '\\': DATA_SECTION+=*str; break;
+                        case 'n': DATA_SECTION+="\", 10, \""; break;
+                        case 'r': DATA_SECTION+="\", 13, \""; break;
+                        case 'a': DATA_SECTION+="\", 7, \""; break;
+                        case 'b': DATA_SECTION+="\", 8, \""; break;
+                        case 't': DATA_SECTION+="\", 9, \""; break;
+                        case 'v': DATA_SECTION+="\", 11, \""; break;
+                        case 'f': DATA_SECTION+="\", 12, \""; break;
+                        case 'e': DATA_SECTION+="\", 27, \""; break;
+                        case '0': DATA_SECTION+="\", 0, \""; break;
+                        default:
+                        cerr << "\033[1;31mUnrecognized escape code of '"<<*str<<"'.\033[0m\n";
+                        assert(false);
+                        break;
+                      }
+                    break;
+                    default:
+                      DATA_SECTION+=*str;
+                    break;
+                  }
+                  str++;
+                }
+                DATA_SECTION+=", 0\n";
+              }
+              break;
               case lex::INT:
               case lex::UINT: DATA_SECTION    += "  "+var.label+": dd "+value+"\n";                           break;
               case lex::CHAR: DATA_SECTION    += "  "+var.label+": db "+value+"\n";                           break;
@@ -526,16 +588,32 @@ namespace comp{
           i++;
         }
         else if(cur == "global"){
-          string var_name = INTER[++i];
+          string proc_name = "";
+          if(INTER[i+1]=="::"){
+            i++;
+            proc_name = INTER[++i];
+          }
+          string var_name  = INTER[++i];
           Variable var;
           bool found = false;
-          for(auto &p : PROCS){
-            if(p.second.VARS.find(var_name)!=p.second.VARS.end()){
-              Variable v = p.second.VARS[var_name];
+          if(proc_name==""){
+            for(auto &p : PROCS){
+              if(p.second.VARS.find(var_name)!=p.second.VARS.end()){
+                Variable v = p.second.VARS[var_name];
+                if(v.type!=VTSTACK){
+                  found = true;
+                  var = v;
+                  break;
+                }
+              }
+            }
+          }
+          else{
+            if(PROCS[proc_name].VARS.find(var_name)!=PROCS[proc_name].VARS.end()){
+              Variable v = PROCS[proc_name].VARS[var_name];
               if(v.type!=VTSTACK){
                 found = true;
                 var = v;
-                break;
               }
             }
           }
@@ -962,10 +1040,43 @@ namespace comp{
               "  mov rax, " << asm_var(var) << "\n";
               if(VAR_ASSIGN!=""){
                 Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
-                string outreg = get_reg(var_assign.size, "a");
-                out_stream << "  mov " << outreg << ", "<<WORD_MAP[var_assign.size]<<" [rax]\n"
-                "  mov " << asm_var(var_assign) << ", " << outreg<< "\n";
-                VAR_ASSIGN="";
+                if(isRegularSize(var_assign.size)){
+                  string outreg = get_reg(var_assign.size, "a");
+                  out_stream << "  mov " << outreg << ", "<<WORD_MAP[var_assign.size]<<" [rax]\n"
+                  "  mov " << asm_var(var_assign) << ", " << outreg<< "\n";
+                  VAR_ASSIGN="";
+                }
+                else{
+                  int ptrv = var_assign.byte_addr;
+                  size = var_assign.size;
+                  while(size>0){
+                    if(size>=8){
+                      size-=8;
+                      out_stream<<
+                      "  mov rdx, qword [rax+"<<size<<"]\n"
+                      "  mov qword [rbp-"<<ptrv-size<<"], rdx\n";
+                    }
+                    else if(size>=4){
+                      size-=4;
+                      out_stream<<
+                      "  mov edx, dword [rax+"<<size<<"]\n"
+                      "  mov dword [rbp-"<<ptrv-size<<"], edx\n";
+                    }
+                    else if(size>=2){
+                      size-=2;
+                      out_stream<<
+                      "  mov dx, word [rax+"<<size<<"]\n"
+                      "  mov word [rbp-"<<ptrv-size<<"], dx\n";
+                    }
+                    else if(size==1){
+                      size-=1;
+                      out_stream<<
+                      "  mov dl, byte [rax+"<<size<<"]\n"
+                      "  mov byte [rbp-"<<ptrv-size<<"], dl\n";
+                    }
+                  }
+                  VAR_ASSIGN="";
+                }
               }
               else if(INTER[i+1]!=";"){
                 string value = INTER[++i];
@@ -1057,9 +1168,13 @@ namespace comp{
               Variable var_assign = PROCS[CP].VARS[VAR_ASSIGN];
               int size = cvar.size;
               if(size==1||size==2||size==4||size==8){
+                if(cvar.size<var_assign.size){
+                  out_stream<<
+                  "  xor rax, rax\n";
+                }
                 out_stream<<
                 "  mov "<<get_reg(cvar.size, "a")<<", "<<asm_var(cvar)<<"\n"
-                "  mov "<<asm_var(var_assign)<<", "<<get_reg(cvar.size, "a")<<"\n";
+                "  mov "<<asm_var(var_assign)<<", "<<get_reg(var_assign.size, "a")<<"\n";
                 VAR_ASSIGN="";
                 i++;
               }
@@ -1071,25 +1186,25 @@ namespace comp{
                     size-=8;
                     out_stream<<
                     "  mov rax, qword [rbp-"<<ptrc-size<<"]\n"
-                    "  mov qword [rbp-"<<ptrv-size<<"]\n";
+                    "  mov qword [rbp-"<<ptrv-size<<"], rax\n";
                   }
                   else if(size>=4){
                     size-=4;
                     out_stream<<
                     "  mov eax, dword [rbp-"<<ptrc-size<<"]\n"
-                    "  mov dword [rbp-"<<ptrv-size<<"]\n";
+                    "  mov dword [rbp-"<<ptrv-size<<"], eax\n";
                   }
                   else if(size>=2){
                     size-=2;
                     out_stream<<
                     "  mov ax, word [rbp-"<<ptrc-size<<"]\n"
-                    "  mov word [rbp-"<<ptrv-size<<"]\n";
+                    "  mov word [rbp-"<<ptrv-size<<"], ax\n";
                   }
                   else if(size==1){
                     size-=1;
                     out_stream<<
                     "  mov al, byte [rbp-"<<ptrc-size<<"]\n"
-                    "  mov byte [rbp-"<<ptrv-size<<"]\n";
+                    "  mov byte [rbp-"<<ptrv-size<<"], al\n";
                   }
                 }
                 VAR_ASSIGN="";
@@ -1099,6 +1214,9 @@ namespace comp{
             else{
               if(INTER[++i]=="=") VAR_ASSIGN = cur;
               else{
+                cerr << i << "\n"
+                << "BEFORE: " << INTER[i+1] << "\n"
+                << "AFTER: "  << INTER[i-1] << "\n";
                 cerr << "\033[1;31mHanging variable of '"<<cur.erase(0,1)<<"' in compiler stage.\033[0m\n";
                 assert(false);
               }
@@ -1152,6 +1270,9 @@ namespace comp{
             else{
               if(INTER[++i]=="=") VAR_ASSIGN = cur;
               else{
+                cerr << i << "\n"
+                << "BEFORE: " << INTER[i+1] << "\n"
+                << "AFTER: "  << INTER[i-1] << "\n";
                 cerr << "\033[1;31mHanging variable of '"<<cur.erase(0,1)<<"' in compiler stage.\033[0m\n";
                 assert(false);
               }
@@ -1181,7 +1302,7 @@ namespace comp{
                     s += value[i];
                   }
                   out_stream<<
-                  "  mov rax, '"<<s<<"'\n"
+                  "  mov rax, \""<<s<<"\"\n"
                   "  mov qword [rbp-"<<ptrv-counter<<"], rax\n";
                   counter+=8;
                 }
@@ -1191,7 +1312,7 @@ namespace comp{
                     s += value[i];
                   }
                   out_stream<<
-                  "  mov eax, '"<<s<<"'\n"
+                  "  mov eax, \""<<s<<"\"\n"
                   "  mov dword [rbp-"<<ptrv-counter<<"], eax\n";
                   counter+=4;
                 }
@@ -1201,7 +1322,7 @@ namespace comp{
                     s += value[i];
                   }
                   out_stream<<
-                  "  mov ax, '"<<s<<"'\n"
+                  "  mov ax, \""<<s<<"\"\n"
                   "  mov word [rbp-"<<ptrv-counter<<"], ax\n";
                   counter+=2;
                 }
@@ -1211,7 +1332,7 @@ namespace comp{
                     s += value[i];
                   }
                   out_stream<<
-                  "  mov al, '"<<s<<"'\n"
+                  "  mov al, \""<<s<<"\"\n"
                   "  mov byte [rbp-"<<ptrv-counter<<"], al\n";
                   counter+=1;
                 }
