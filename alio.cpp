@@ -4,6 +4,7 @@
 #include <string>
 #include "./modules/trees.h"
 #include "./modules/options.h"
+#include "./modules/error.h"
 #include "./modules/lexer.h"
 #include "./modules/intermediate.h"
 #include "./modules/compiler.h"
@@ -147,7 +148,7 @@ int main(int argc, char** argv){
   cerr << char_line << "\n";
   
   //Link Program
-  ss << "ld -m "<< linker_target <<" -e main -o " << (options::EXEC_FILE=="" ? options::FILE_BASENAME : options::EXEC_FILE) << " " << options::FILE_BASENAME << ".o ";
+  ss << "ld -m "<< linker_target <<" -e "<< options::ENTRYPOINT <<" -o " << (options::EXEC_FILE=="" ? options::FILE_BASENAME : options::EXEC_FILE) << " " << options::FILE_BASENAME << ".o ";
   cmd_line = ss.str();
   char_line = cmd_line.c_str();
   ss.str("");

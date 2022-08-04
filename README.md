@@ -4,15 +4,12 @@
 Written for Debian Linux.
 
 ## Setup ##
-Compiling and using alio for now, this will be changed ALOT in the future.   
-**NOTE IM UPDATING THE CODE BUT NOT THE README.md FOR NOW**   
-**TAKE ALL DOCUMENTATION WITH A GAINT GRAIN OF SALT**   
+Use the alio compiler through the shell script given.
 
 ```
-usr@penguin:~/ALIO$ g++ alio.cpp -o alio
-usr@penguin:~/ALIO$ ./alio --help
-usr@penguin:~/ALIO$ ./alio -f main.alio
-usr@penguin:~/ALIO$ ./main
+usr@penguin:~/cwd$ alio --help
+usr@penguin:~/cwd$ alio -f main.alio
+usr@penguin:~/cwd$ ./main
 ```
 
 ## Docs ##
@@ -119,8 +116,85 @@ begin
 end
 ```
 
+### Structs ###
+A container for multiple variables, I don't know how describe a struct without writing too much. It is a struct, deal with it.
+```
+;;include static <stdlib>
+
+struct A
+begin
+  uint x
+  uint y
+end
+
+proc A::sum
+out uint s
+begin
+  A var
+  var @self
+  s var.x+var.y
+end
+
+proc main
+begin
+  A var
+  var.x 10
+  var.y 20
+  uint s var.sum()
+  printu(STDOUT s)
+  printc(STDOUT 10)
+end
+```
+
+### Global ###
+Takes static variable from another proc. Can be an anynomus or specified proc (advised to use specified).
+```
+;;include static <stdlib>
+
+proc foo
+begin
+  static string f[12]
+end
+
+proc main
+begin
+  foo()
+  global foo::f
+  static string hi "Hello World!\n"
+  strcpy(hi f)
+  prints(STDOUT f)
+end
+```
+
+### Methods ###
+You can add methods to types or structs, the value its operated upon is in the pointer self.
+```
+;;include static <stdlib>
+
+struct A
+begin
+  uint x
+  uint y
+end
+
+proc uint::add
+in uint y
+begin
+  uint x @self
+  x x+y
+  @self x
+end
+
+proc main
+begin
+  uint x 420
+  x.add(69)
+  printu(STDOUT x)
+  printc(STDOUT 10)
+end
+```
+
 ## Goals ##
 - resupport x86 mode (elf32/i386)
-- Add else and elif based off of while (already added if)
-- Add %tmp1, %tmp2, %tmp3... for expression expansions in intermediate lang
+- Add %tmp1, %tmp2, %tmp3... for expression expansions in intermediate
 - Use %tmp's for conditionals in while, if, elif, ect.
