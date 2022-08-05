@@ -1,0 +1,176 @@
+/* The side navigation menu */
+
+:root{
+  --black: #141414;
+  --white: #F3F9D2;
+  --pink: #FCB0D9;
+  --grey: #7E7F83;
+  --red: #B6244F;
+  --green: #16f275;
+  --sidebar-size: auto;
+  --page-size: 1000px;
+  /*--margin-top:;*/
+}
+
+body{
+  margin: 0;
+  padding: 0;
+  background-color: var(--black);
+}
+
+.sidebar {
+  margin: 0;
+  padding: 0;
+  background-color: var(--white);
+  top: 0;
+  position: fixed;
+  width: 100%;
+  height: var(--sidebar-size);
+  overflow: auto;
+  box-shadow: 0px 5px 5px var(--black);
+}
+
+/* Sidebar links */
+.sidebar a {
+  float: left;
+  display: block;
+  color: black;
+  padding: 16px;
+  text-decoration: none;
+}
+
+/* Active/current link */
+.sidebar a.active {
+  background-color: var(--pink);
+  color: white;
+}
+
+/* Links on mouse-over */
+.sidebar a:hover:not(.active) {
+  background-color: var(--red);
+  color: white;
+}
+
+/* Page content. The value of the margin-left property should match the value of the sidebar's width property */
+div.content {
+  margin-top: 55px;
+  margin-left: 0;
+  padding: 1px 16px;
+  height: var(--page-size);
+}
+
+/* On screens that are less than 700px wide, make the sidebar into a topbar */
+@media screen and (max-width: 700px) {
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+  }
+  .sidebar a {float: left;}
+  div.content {margin-left: 0;}
+}
+
+/* On screens that are less than 400px, display the bar vertically, instead of horizontally */
+@media screen and (max-width: 400px) {
+  .sidebar a {
+    text-align: center;
+    float: none;
+  }
+}
+
+.search-bar input[type=text] {
+  float: right;
+  padding: 6px;
+  border: none;
+  margin-top: 8px;
+  margin-right: 16px;
+  font-size: 17px;
+}
+
+.page-item{
+  background-color: var(--white);
+  color: var(--black);
+  text-align: center;
+  border-style: round;
+  margin-top: 32px;
+  margin-right: 16px;
+  margin-left: 16px;
+  font-size: 16px;
+  height: 20%;
+  float: none;
+}
+
+.inherit-all{
+  width: inherit;
+  height: inherit;
+  align-content: flex-start;
+}
+
+.footer{
+  background-color: var(--grey);
+  color: var(--white);
+  position: relative;
+  height: auto;
+  text-align: center;
+  bottom: 0;
+}
+
+.left-column{
+  border-radius: 5px 5px;
+  box-sizing: border-box;
+  color: var(--white);
+  display: block;
+  float: left;
+  font-size: 16px;
+  font-stretch: 100%;
+  font-style: normal;
+  font-weight: 400;
+  height: auto;
+  line-height: 28px;
+  width: 150px;
+  background-color: var(--grey);
+  position: static;
+  left: 0;
+}
+
+.topic{
+  font-size: 22px;
+  font-weight: 600;
+  position: static;
+  margin-left: 6px;
+}
+
+.lc-item{
+  margin-left: 6px;
+  position: static;
+}
+
+.right-column{
+  border-radius: 5px 5px;
+  margin-top: 8px;
+  margin-left: 150px;
+  box-sizing: border-box;
+  color: var(--black);
+  display: block;
+  float: none;
+  font-size: 16px;
+  font-stretch: 100%;
+  font-style: normal;
+  font-weight: 400;
+  /*height: auto;*/
+  /*line-height: 28px;*/
+  /*width: 150px;*/
+  height: 100%;
+  background-color: var(--white);
+  position: static;
+}
+
+.right-column > *{
+  margin-left: 12px;
+}
+
+.page-header{
+  margin-top: 6px;
+  font-size: 32px;
+  font-weight: 600;
+}
