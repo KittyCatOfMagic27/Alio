@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+  <head lang="en">
+    <title>Alio Docs</title>
+    <link rel="stylesheet" href="main.css">
+  </head>
+  <body>
+    <!-- The sidebar -->
+    <div class="sidebar">
+      <a class="active selectItem" onclick="selectItem('#home')" href="#home" id="#home">Home</a>
+      <a class="selectItem" onclick="selectItem('#docs')" href="#docs" id="#docs">Docs</a>
+      <a class="selectItem" onclick="selectItem('#contact')" href="#contact" id="#contact">Contact</a>
+      <a class="selectItem" onclick="selectItem('#about')" href="#about" id="#about">About</a>
+      <div class="search-bar">
+        <input type="text" placeholder="Search..">
+      </div>
+    </div>
+    
+    <!-- Page content -->
+    <div class="content" id="content">
+    </div>
+    
+    <!--Footer-->
+    <div class="footer">
+      The compiler is <a href="https://github.com/KittyCatOfMagic27/Alio">here</a>.
+    </div>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

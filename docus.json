@@ -1,0 +1,46 @@
+{
+  "lib":{
+    "stdlib":{
+      "abrv": "stdlib",
+      "name": "Alio Standard Library",
+      "page":{
+        "type": "a",
+        "text": "Hello Stdlib!",
+        "attr": [["class", "page-header"]],
+        "children": []
+      }
+    },
+    "mem":{
+      "abrv": "mem",
+      "name": "Memory Library",
+      "page":{
+        "type": "a",
+        "text": "Hello Mem!",
+        "attr": [],
+        "children": []
+      }
+    }
+  },
+  "lang":{
+    "proc":{
+      "abrv": "proc",
+      "name": "Procedures",
+      "page":{
+        "type": "a",
+        "text": "Hello Proc!",
+        "attr": [],
+        "children": []
+      }
+    },
+    "type":{
+      "abrv": "type",
+      "name": "Type System",
+      "page":{
+        "type": "a",
+        "text": "Hello Types!",
+        "attr": [],
+        "children": []
+      }
+    }
+  }
+}
