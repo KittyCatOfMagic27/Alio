@@ -18,7 +18,7 @@ usr@penguin:~/cwd$ ./main
    
 Procedures are Alio's version of a funtion. They consist of two parts, the head and body. The head is the portion of code in between the label of the procedure and the begin keyword. In this part of the procedure we specify the in and out variables and other attributes of the procedure. After the begin keyword is the body of the procedure, this is the code that is executed when the procedure is called. The final thing about procedures is that they end (like all blocks in Alio) with the end keyword. For now the entry point is main, later this will have to be specified at the begining of the program.
 
-```
+```elixir
 proc main
 in uint argc
 in ptr argv
@@ -42,7 +42,7 @@ Something interesting about Alio is that most operators are procedually created 
 
 ### Pointers ###
 Pointers store an address to a place in memory. Most of the time this is to a variable. They have two unique operators. The first is the '&' operator used to get the address of a variable. The second is the '@' operartor, this is used to get the value at the address.
-```
+```elixir
 proc main
 begin
   int x 5
@@ -51,9 +51,18 @@ begin
 end
 ```
 
+### Strings ###
+Strings in Alio aren't traditional strings; they are simply used as sectors of memory. For example, you can have a string that is `string x[16]` which is 16 bytes of memory. You *could* use this as a string of 16 chacters (traditional use) or as an array of 4 intergers. By that logic it could be used as an array of 2 pointers ect. Note that strings that are not static ARE NOT null-terminated, not ending in a byte of value zero. Though static strins are null-terminated. Something else that is noteworthy is that strings can be assigned from string literals and only static strings suport escape codes for now.
+```elixir
+proc main
+begin
+  string hi "Hello Word!\n"
+end
+```
+
 ### Static ###
 Static variables are stored in the bss and data sections. This means they have some different properties from normal variables and are slightly slower to access.
-```
+```elixir
 ;;include static <stdlib>
 
 proc main
@@ -67,7 +76,7 @@ end
 
 ### Syscalls ###
 System Calls are used to interface with the linux kernel. The first argument is the syscall ID and the rest are the arguments to the call. Syscalls can also return values.
-```
+```elixir
 proc SYS_write
 in uint fd
 in ptr buffer
@@ -79,7 +88,7 @@ end
 
 ### While ###
 The keyword while instantiates a loop, currently it runs while the checked value is not 0. This will be changed in the future to support expressions with the addition of ifs, elses, and elifs.
-```
+```elixir
 ;;include static <stdlib>
 
 proc main
@@ -102,7 +111,7 @@ end
 
 ### If ###
 If activates the code within the block if and only if the input is not zero or null. Just like while loops, expressions within the if comparison are not implemented yet.
-```
+```elixir
 proc main
 begin
   uint x 69
@@ -118,7 +127,7 @@ end
 
 ### Structs ###
 A container for multiple variables, I don't know how describe a struct without writing too much. It is a struct, deal with it.
-```
+```elixir
 ;;include static <stdlib>
 
 struct A
@@ -148,7 +157,7 @@ end
 
 ### Global ###
 Takes static variable from another proc. Can be an anynomus or specified proc (advised to use specified).
-```
+```elixir
 ;;include static <stdlib>
 
 proc foo
@@ -168,7 +177,7 @@ end
 
 ### Methods ###
 You can add methods to types or structs, the value its operated upon is in the pointer self.
-```
+```elixir
 ;;include static <stdlib>
 
 struct A
