@@ -56,7 +56,7 @@ Strings in Alio aren't traditional strings; they are simply used as sectors of m
 ```
 proc main
 begin
-  string hi "Hello Word!\n"
+  static string hi "Hello Word!\n"
 end
 ```
 
