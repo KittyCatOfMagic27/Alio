@@ -114,21 +114,6 @@ namespace comp{
       break;
     }
   }
-  string asm_get_value(string &value, Procedure &proc){
-    if(lex::literal_or_var(value) == lex::ERROR){
-      Variable var = proc.VARS[value];
-      return asm_var(var);;
-    }
-    else{
-      if(value == "true"){
-        return "1";
-      }
-      else if(value == "false"){
-        return "0";
-      }
-      return value;
-    }
-  }
   bool isRegularSize(int size){
     switch(size){
       case 1:
@@ -143,6 +128,40 @@ namespace comp{
     }
   }
   
+  string DATA_string(string label, string value){
+    string output = "  "+label+": db ";
+    const char* str = value.c_str();
+    while(*str){
+      switch(*str){
+        case '\\':
+          str++;
+          switch(*str){
+            case '\\': output+=*str; break;
+            case 'n': output+="\", 10, \""; break;
+            case 'r': output+="\", 13, \""; break;
+            case 'a': output+="\", 7, \""; break;
+            case 'b': output+="\", 8, \""; break;
+            case 't': output+="\", 9, \""; break;
+            case 'v': output+="\", 11, \""; break;
+            case 'f': output+="\", 12, \""; break;
+            case 'e': output+="\", 27, \""; break;
+            case '0': output+="\", 0, \""; break;
+            default:
+            cerr << "\033[1;31mUnrecognized escape code of '"<<*str<<"'.\033[0m\n";
+            assert(false);
+            break;
+          }
+        break;
+        default:
+          output+=*str;
+        break;
+      }
+      str++;
+    }
+    output+=", 0\n";
+    return output;
+  }
+  
   class COMPILER{
     public:
     vector<string> syscall_args;
@@ -155,6 +174,10 @@ namespace comp{
     ofstream out_stream;
     unordered_map<string, Procedure> PROCS;
     
+    string DATA_SECTION;
+    string BSS_SECTION;
+    int string_count;
+    
     COMPILER(string &wf, vector<string> &_INTER){
       out_stream.open(wf.c_str());
       if(!out_stream.is_open()){
@@ -164,7 +187,6 @@ namespace comp{
       INTER = _INTER;
       setup();
     }
-    
     COMPILER(string &wf, const char* rf){
       vector<string> Lines;
       string line;
@@ -187,7 +209,6 @@ namespace comp{
       out_stream.open(wf.c_str());
       setup();
     }
-    
     void setup(){
       syscall_args = {
         "rax",
@@ -235,8 +256,8 @@ namespace comp{
         {"!=","je"}
       };
     }
-    
     void run(){
+      string_count = 0;
       preparse();
       switch(options::target){
         case options::X86_I386:
@@ -273,6 +294,27 @@ namespace comp{
     
     private:
     
+    string asm_get_value(string &value, Procedure &proc){
+      if(lex::literal_or_var(value) == lex::ERROR){
+        Variable var = proc.VARS[value];
+        return asm_var(var);;
+      }
+      else{
+        if(value == "true"){
+          return "1";
+        }
+        else if(value == "false"){
+          return "0";
+        }
+        else if(lex::literal_or_var(value) == lex::STRING){
+          string label  = "string"+to_string(++string_count);
+          DATA_SECTION +=DATA_string(label, value);
+          return label;
+        }
+        return value;
+      }
+    }
+    
     void preparse(){
       string CP;
       for(int i=0; i<INTER.size(); i++){
@@ -304,13 +346,12 @@ namespace comp{
         }
       }
     }
-    
     void init_nasm(){
       out_stream <<
       "SECTION .text		; code section\n"
       "global "<<options::ENTRYPOINT<<"		  ; make label available to linker\n";
+      for(string &s : lex::EXTERNAL_PROCS) out_stream << "extern " << s << "\n";
     }
-    
     void op_init(int &size1, int &size2, string &reg1, string &reg2, int &i, Procedure &proc){
       string v1 = INTER[++i];
       string v2 = INTER[++i];
@@ -337,7 +378,6 @@ namespace comp{
         "  mov "<< reg2 <<", " << asm_get_value(v2, proc) << "\n";
       }
     }
-    
     void to_nasmX86_64(){
       printf("Intermediate to NASM...\n");
       if(options::DEBUGMODE){
@@ -349,8 +389,8 @@ namespace comp{
       int INTER_LINE = 0;
       string VAR_ASSIGN;
       string CP;
-      string DATA_SECTION = "SECTION .data:\n";
-      string BSS_SECTION = "SECTION .bss\n";
+      DATA_SECTION = "SECTION .data:\n";
+      BSS_SECTION  = "SECTION .bss\n";
       for(int i=0; i<INTER.size(); i++){
         string cur = INTER[i];
         if(cur == "proc"){
@@ -363,10 +403,18 @@ namespace comp{
             out_stream <<
             ".exit:\n"
             "  add rsp, " << PROCS[CP].offset << "\n"
-            "  pop rbp\n"
-            "  mov rax, 60\n"
-            "  mov rdi, 0\n"
-            "  syscall\n";
+            "  pop rbp\n";
+            if(!options::LIBC){
+              out_stream <<
+              "  mov rax, 60\n"
+              "  mov rdi, 0\n"
+              "  syscall\n";
+            }
+            else{
+              out_stream <<
+              "  mov eax, 0\n"
+              "  call exit\n";
+            }
           }
           else{
             out_stream <<
@@ -488,11 +536,16 @@ namespace comp{
               }
               else{
                 lex::ENUM_TYPE type = lex::literal_or_var(INTER[i]);
-                int size            = lex::ERROR == type ?
-                                      PROCS[CP].VARS[INTER[i]].size :
-                                      stoi(intr::size_of(type).erase(0,1))/8;
-                if(size<8&&type==lex::ERROR) out_stream << "  movsx ";
-                else out_stream << "  mov ";
+                if(type==lex::STRING){
+                  out_stream << "  mov ";
+                }
+                else{
+                  int size            = lex::ERROR == type ?
+                                        PROCS[CP].VARS[INTER[i]].size :
+                                        stoi(intr::size_of(type).erase(0,1))/8;
+                  if(size<8&&type==lex::ERROR) out_stream << "  movsx ";
+                  else out_stream << "  mov ";
+                }
               }
               out_stream << syscall_args[j] << ", " << asm_get_value(INTER[i], PROCS[CP]) << "\n";
               j++;
@@ -527,39 +580,7 @@ namespace comp{
             string value        = INTER[++i];
             lex::ENUM_TYPE type = lex::literal_or_var(value);
             switch(type){
-              case lex::STRING: {
-                DATA_SECTION  += "  "+var.label+": db ";
-                const char* str = value.c_str();
-                while(*str){
-                  switch(*str){
-                    case '\\':
-                      str++;
-                      switch(*str){
-                        case '\\': DATA_SECTION+=*str; break;
-                        case 'n': DATA_SECTION+="\", 10, \""; break;
-                        case 'r': DATA_SECTION+="\", 13, \""; break;
-                        case 'a': DATA_SECTION+="\", 7, \""; break;
-                        case 'b': DATA_SECTION+="\", 8, \""; break;
-                        case 't': DATA_SECTION+="\", 9, \""; break;
-                        case 'v': DATA_SECTION+="\", 11, \""; break;
-                        case 'f': DATA_SECTION+="\", 12, \""; break;
-                        case 'e': DATA_SECTION+="\", 27, \""; break;
-                        case '0': DATA_SECTION+="\", 0, \""; break;
-                        default:
-                        cerr << "\033[1;31mUnrecognized escape code of '"<<*str<<"'.\033[0m\n";
-                        assert(false);
-                        break;
-                      }
-                    break;
-                    default:
-                      DATA_SECTION+=*str;
-                    break;
-                  }
-                  str++;
-                }
-                DATA_SECTION+=", 0\n";
-              }
-              break;
+              case lex::STRING: DATA_SECTION  +=DATA_string(var.label, value);                                break;
               case lex::INT:
               case lex::UINT: DATA_SECTION    += "  "+var.label+": dd "+value+"\n";                           break;
               case lex::CHAR: DATA_SECTION    += "  "+var.label+": db "+value+"\n";                           break;

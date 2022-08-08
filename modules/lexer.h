@@ -185,6 +185,7 @@ namespace lex{
   });
   vector<string> PTR_LIST;
   unordered_map<string, Structure> STRUCTS;
+  vector<string> EXTERNAL_PROCS;
   errh::FileIdentity Files;
   
   //UTIL
@@ -480,6 +481,13 @@ namespace lex{
       printf("Tokenizing...\n");
       vector<string> SYM_TABLE({"+","-","/","*","%","&",";;","(",")",";","[","]","@","++","--","<",">","<=",">=","=","!=","&&","<<",">>","-&","|",".","::"});
       vector<string> LIBDEFS;
+      if(options::LIBC)
+        LIBDEFS.push_back("LIBC");
+      else if(options::OSTYPE==options::WIN32)
+        LIBDEFS.push_back("OS_WIN32");
+      else if(options::OSTYPE==options::LINUX_DEBIAN)
+        LIBDEFS.push_back("OS_LINUX_DEBIAN");
+      
       unordered_map<string, string> CONSTS;
       vector<Token> tks;
       for(int LINE_ITER = 0; LINE_ITER < Lines.size(); LINE_ITER++){
@@ -515,6 +523,11 @@ namespace lex{
             tks.push_back(result);
           }
           else if(word==";;"){
+            #define STOPIF \
+              while(++LINE_ITER){ \
+                split_line = split(Lines[LINE_ITER], SYM_TABLE); \
+                if(split_line[0]==";;"&&split_line[1]=="fi") break; \
+              }
             semicolonTR = false;
             if(split_line[++i]=="include"){
               if(split_line[++i]=="static"){
@@ -528,8 +541,9 @@ namespace lex{
                   string path(result);
                   while(j > 0) if(path[--j]=='/') break;
                   path.erase(j+1);
-                  fd = path+"include/"+split_line[++i]+".alio";
-                  filename = split_line[i]+".alio";
+                  while(split_line[++i]!=">") filename+=split_line[i];
+                  filename+=".alio";
+                  fd = path+"include/"+filename;
                 }
                 else if(literal_or_var(split_line[i])==STRING){
                   fd = split_line[i];
@@ -541,7 +555,6 @@ namespace lex{
                   cerr << "\033[1;31m"<<FILENAME<<":"<<LINE_NUMBER<<":Unknown include file input '"<<split_line[i]<<"'.\033[0m\n";
                   assert(false);
                 }
-                i++;
                 string line;
                 ifstream source_code;
                 source_code.open(fd.c_str());
@@ -578,14 +591,22 @@ namespace lex{
             }
             else if(split_line[i]=="ifndef"){
               if(find(LIBDEFS.begin(), LIBDEFS.end(), split_line[++i])!=LIBDEFS.end()){
-                while(++LINE_ITER){
-                  split_line = split(Lines[LINE_ITER], SYM_TABLE);
-                  if(split_line[0]==";;"&&split_line[1]=="fi") break;
-                }
+                STOPIF;
+              }
+            }
+            else if(split_line[i]=="ifdef"){
+              if(find(LIBDEFS.begin(), LIBDEFS.end(), split_line[++i])==LIBDEFS.end()){
+                STOPIF;
               }
             }
             else if(split_line[i]=="setentry"){
               options::ENTRYPOINT = split_line[++i];
+            }
+            else if(split_line[i]=="win32kernproc"){
+              EXTERNAL_PROCS.push_back(split_line[++i]);
+            }
+            else if(split_line[i]=="externproc"){
+              EXTERNAL_PROCS.push_back(split_line[++i]);
             }
           }
           else{
@@ -606,6 +627,9 @@ namespace lex{
       printf("Parsing...\n");
       vector<Token> VAR_TKS;
       vector<string> PROCS({"__asm"});
+      if(EXTERNAL_PROCS.size()!=0){
+        PROCS.insert(PROCS.end(), EXTERNAL_PROCS.begin(), EXTERNAL_PROCS.end());
+      }
       unordered_map<string, int> VARS;
       for(int i = 0; i < tks.size(); i++){
         Token tk = tks[i];
