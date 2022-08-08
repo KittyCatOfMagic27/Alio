@@ -55,6 +55,14 @@ namespace flags{
   void INTERMODE(string NA){
     options::INTERMODE = true;
   }
+  
+  void WIN32FLAG(string NA){
+    options::OSTYPE = options::WIN32;
+  }
+  
+  void LIBCFLAG(string NA){
+    options::LIBC = true;
+  }
 }
 
 kf::FlagProxy setup_flags(){
@@ -89,6 +97,15 @@ kf::FlagProxy setup_flags(){
   string asm_flag = "-asm";
   string asm_flag_desc = "Keeps assembly code after compilation.";
   prox.AddFlag(asm_flag, flags::ASMFLAG, asm_flag_desc, 0);
+  
+  string win32_flag = "-win32";
+  string win32_flag_desc = "Sets compilation to win32 mode.";
+  prox.AddFlag(win32_flag, flags::WIN32FLAG, win32_flag_desc, 0);
+  
+  string libc_flag = "-libc";
+  string libc_flag_desc = "Includes libc.";
+  prox.AddFlag(libc_flag, flags::LIBCFLAG, libc_flag_desc, 0);
+  
   
   prox.AddHelp("For additional info check README.md /home/$USR/ALIO/.\n(Powered by KFlags)");
   return prox;
@@ -137,6 +154,10 @@ int main(int argc, char** argv){
     default:
     elf_target    = "elf64";
     linker_target = "elf_x86_64";
+    if(options::OSTYPE==options::WIN32){
+      elf_target  = "win64";
+      // linker_target = "64";
+    }
     break;
   }
   //Compile nasm
@@ -148,7 +169,12 @@ int main(int argc, char** argv){
   cerr << char_line << "\n";
   
   //Link Program
-  ss << "ld -m "<< linker_target <<" -e "<< options::ENTRYPOINT <<" -o " << (options::EXEC_FILE=="" ? options::FILE_BASENAME : options::EXEC_FILE) << " " << options::FILE_BASENAME << ".o ";
+  if(!options::LIBC){
+    ss << "ld -m "<<linker_target<<" -e "<< options::ENTRYPOINT <<" -o " << (options::EXEC_FILE=="" ? options::FILE_BASENAME : options::EXEC_FILE) << " " << options::FILE_BASENAME << ".o ";
+  }
+  else{
+    ss << "gcc -no-pie -Wl,-m"<<linker_target<<" -e "<< options::ENTRYPOINT <<" -o " << (options::EXEC_FILE=="" ? options::FILE_BASENAME : options::EXEC_FILE) << " " << options::FILE_BASENAME << ".o ";
+  }
   cmd_line = ss.str();
   char_line = cmd_line.c_str();
   ss.str("");
