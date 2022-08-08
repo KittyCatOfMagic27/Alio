@@ -1,0 +1,137 @@
+# ***DOCU*** NAME: Windows Sys \
+# ***DOCU*** ABRV: win32_sys \
+# ***DOCU*** DESC: System Library for Windows. \
+
+;;winkernproc WinWrite
+
+#FLAGS
+;;define O_RDONLY 0
+;;define O_WRONLY 1
+;;define O_RDWR 2
+;;define O_CREAT 64
+;;define O_TRUNC 512
+;;define O_APPEND 1024
+# MODES
+;;define S_IRWXU 1792
+# Syscall NRs
+;;define NRSYS_READ 0
+;;define NRSYS_WRITE 1
+;;define NRSYS_OPEN 2
+;;define NRSYS_CLOSE 3
+;;define NRSYS_STAT 4
+;;define NRSYS_FSTAT 5
+;;define NRSYS_LSTAT 6
+;;define NRSYS_POLL 7
+;;define NRSYS_LSEEK 8
+;;define NRSYS_MMAP 9
+;;define NRSYS_MPROTECT 10
+;;define NRSYS_MUNMAP 11
+;;define NRSYS_BRK 12
+;;define NRSYS_RT_SIGNACTION 13
+;;define NRSYS_RT_SIGPROCMASK 14
+;;define NRSYS_RT_SIGRETURN 15
+;;define NRSYS_IOCTL 16
+;;define NRSYS_PREAD64 17
+;;define NRSYS_PWRITE 18
+;;define NRSYS_READV 19
+;;define NRSYS_WRITEV 20
+;;define NRSYS_ACCESS 21
+;;define NRSYS_PIPE 22
+;;define NRSYS_SELECT 23
+;;define NRSYS_SCHED_YIELD 24
+;;define NRSYS_MREMAP 25
+;;define NRSYS_MSYNC 26
+;;define NRSYS_MINCORE 27
+;;define NRSYS_MADVISE 28
+;;define NRSYS_SHMGET 29
+;;define NRSYS_SHMAT 30
+;;define NRSYS_SHMCTL 31
+;;define NRSYS_DUP 32
+;;define NRSYS_DUP2 33
+;;define NRSYS_PAUSE 34
+;;define NRSYS_NANOSLEEP 35
+;;define NRSYS_GETITIMER 36
+;;define NRSYS_ALARM 37
+;;define NRSYS_SETITIMER 38
+;;define NRSYS_GETPID 39
+;;define NRSYS_SENDFILE 40
+;;define NRSYS_SOCKET 41
+;;define NRSYS_CONNECT 42
+;;define NRSYS_ACCEPT 43
+;;define NRSYS_SENDTO 44
+;;define NRSYS_RECVFROM 45
+;;define NRSYS_SENDMSG 46
+;;define NRSYS_RECVMSG 47
+;;define NRSYS_SHUTDOWN 48
+;;define NRSYS_BIND 49
+;;define NRSYS_LISTEN 50
+;;define NRSYS_GETSOCKNAME 51
+;;define NRSYS_GETPEERNAME 52
+;;define NRSYS_SOCKETPAIR 53
+;;define NRSYS_SETSOCKOPT 54
+;;define NRSYS_GETSOCKOPT 55
+;;define NRSYS_CLONE 56
+;;define NRSYS_FORK 57
+;;define NRSYS_VFORK 58
+;;define NRSYS_EXECVE 59
+;;define NRSYS_EXIT 60
+;;define NRSYS_WAIT4 61
+;;define NRSYS_KILL 62
+;;define NRSYS_UNAME 63
+;;define NRSYS_SEMGET 64
+;;define NRSYS_SEMOP 65
+# All im doing for now...
+
+#SYSCALL WRAPPERS
+proc SYS_write
+in uint fd
+in ptr buffer
+in uint size
+begin
+  syscall(NRSYS_WRITE fd buffer size)
+end
+
+proc SYS_read
+in uint fd
+in ptr buffer
+in uint size
+out uint read_amount
+begin
+  read_amount syscall(NRSYS_READ fd buffer size)
+end
+
+proc SYS_openfd
+in ptr filename
+in uint flags
+in uint mode
+out uint fd
+begin
+  fd syscall(NRSYS_OPEN filename flags mode)
+end
+
+proc SYS_closefd
+in uint fd
+begin
+  syscall(NRSYS_CLOSE fd)
+end
+
+proc SYS_fstat
+in uint fd
+in ptr fstat_struct # buffer[144]
+begin
+  syscall(NRSYS_FSTAT fd fstat_struct)
+end
+
+proc SYS_exit
+in uint error_code
+begin
+  syscall(NRSYS_EXIT error_code)
+end
+
+proc SYS_execve
+in ptr filename
+in ptr argv
+in ptr envp
+begin
+  syscall(NRSYS_EXECVE filename argv envp)
+end

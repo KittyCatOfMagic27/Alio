@@ -1,1 +1,112 @@
+# ***DOCU*** NAME: Libc \
+# ***DOCU*** ABRV: libc_sys \
+# ***DOCU*** DESC: Standard Libc. \
+;;externproc write
+;;externproc read
+;;externproc open
+;;externproc exit
+;;externproc close
+;;externproc execve
+;;externproc fstat
 
+
+#FLAGS
+;;define O_RDONLY 0
+;;define O_WRONLY 1
+;;define O_RDWR 2
+;;define O_CREAT 64
+;;define O_TRUNC 512
+;;define O_APPEND 1024
+# MODES
+;;define S_IRWXU 1792
+
+proc SYS_write
+in uint fd
+in ptr buffer
+in uint size
+begin
+  __asm(
+    "  mov rax, qword [rbp-12]"
+    "  mov edx, dword [rbp-16]"
+    "  mov rsi, rax"
+    "  mov edi, dword [rbp-4]"
+  )
+  write()
+end
+
+proc SYS_read
+in uint fd
+in ptr buffer
+in uint size
+out uint read_amount
+begin
+  __asm(
+    "  mov rax, qword [rbp-12]"
+    "  mov edx, dword [rbp-16]"
+    "  mov rsi, rax"
+    "  mov edi, dword [rbp-4]"
+  )
+  read_amount read()
+end
+
+proc SYS_openfd
+in ptr filename
+in uint flags
+in uint mode
+out uint fd
+begin
+  __asm(
+    "  mov edx, dword [rbp-16]"
+    "  mov ecx, dword [rbp-12]"
+    "  mov rax, qword [rbp-8]"
+    "  mov esi, ecx"
+    "  mov rdi, rax"
+    "  mov eax, 0"
+  )
+  fd open()
+end
+
+proc SYS_exit
+in uint error_code
+begin
+  __asm("  mov edi, dword [rbp-4]")
+  exit()
+end
+
+proc SYS_closefd
+in uint fd
+begin
+  __asm(
+    "  mov eax, dword [rbp-4]"
+    "  mov edi, eax"
+  )
+  close()
+end
+
+proc SYS_execve
+in ptr filename
+in ptr argv
+in ptr envp
+begin
+  __asm(
+    "mov rdx, qword [rbp-24]"
+    "mov rcx, qword [rbp-16]"
+    "mov rax, qword [rbp-8]"
+    "mov rsi, rcx"
+    "mov rdi, rax"
+  )
+  execve()
+end
+
+proc SYS_fstat
+in uint fd
+in ptr fstat_struct # buffer[144]
+begin
+  __asm(
+    "mov rdx, qword [rbp-12]"
+    "mov eax, dword [rbp-4]"
+    "mov rsi, rdx"
+    "mov edi, eax"
+  )
+  fstat()
+end
