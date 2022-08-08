@@ -1,3 +1,8 @@
+# ***DOCU*** NAME: Socket \
+# ***DOCU*** ABRV: socket \
+# ***DOCU*** DESC: Has socket functionalities. \
+# ***DOCU*** DEPENDS: stdlib \
+
 ;;ifndef ALIO_SOCKETLIB
 ;;def ALIO_SOCKETLIB
 ;;include static <stdlib>
